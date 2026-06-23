@@ -1177,7 +1177,7 @@ function SignInScreen({ onSignedIn }) {
 // ── SPLASH SCREEN ─────────────────────────────────────────────────────────────
 function SplashScreen() {
   return (
-        🎯
+    {"🎯"}
       </div>
       <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em" }}>Ace<span style={{ color: "#3B82F6" }}>Board</span></div>
       <p style={{ ...S.body, fontSize: 13, marginTop: 6 }}>Built for students, everywhere</p>
