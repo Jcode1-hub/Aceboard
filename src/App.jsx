@@ -1143,10 +1143,9 @@ function SignInScreen({ onSignedIn }) {
   };
 
   return (
-    <div style={{ ...S.app, display: "flex", flexDirection: "column", justifyContent: "center", minHeight: "100vh", padding: "0 28px" }}>
+   <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minHeight: "100vh", padding: "0 28px", backgroundColor: "#080D1E" }}>
       <div style={{ textAlign: "center", marginBottom: 40 }}>
-        <div style={{ width: 72, height: 72, borderRadius: 20, background: "linear-gradient(135deg, #3B82F6 0%, #1E3A5F 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto 18px", boxShadow: "0 8px 28px rgba(59,130,246,0.3)" }}>
-          🎯
+       <img src="/icon.png" style={{ width: 72, height: 72, borderRadius: 16 }} alt="AceBoard" />
         </div>
         <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>Ace<span style={{ color: "#3B82F6" }}>Board</span></div>
         <p style={{ ...S.body, fontSize: 13, marginTop: 8 }}>Sign in to save your progress, streaks, and bookmarks across sessions.</p>
