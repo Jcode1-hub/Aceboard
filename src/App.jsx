@@ -1177,14 +1177,10 @@ function SignInScreen({ onSignedIn }) {
 // ── SPLASH SCREEN ─────────────────────────────────────────────────────────────
 function SplashScreen() {
   return (
-    {"🎯"}
-      </div>
-      <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em" }}>Ace<span style={{ color: "#3B82F6" }}>Board</span></div>
-      <p style={{ ...S.body, fontSize: 13, marginTop: 6 }}>Built for students, everywhere</p>
-      <div style={{ marginTop: 36, width: 32, height: 3, borderRadius: 2, backgroundColor: "#1E2A4A", overflow: "hidden", position: "relative" }}>
-        <div style={{ position: "absolute", inset: 0, backgroundColor: "#3B82F6", animation: "splashLoad 1.4s ease-in-out infinite" }} />
-      </div>
-      <style>{`@keyframes splashLoad { 0% { transform: translateX(-100%); } 50% { transform: translateX(0%); } 100% { transform: translateX(100%); } }`}</style>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: "#080D1E" }}>
+      <div style={{ fontSize: 64, marginBottom: 16 }}>{"🎯"}</div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>Ace<span style={{ color: "#3B82F6" }}>Board</span></div>
+      <p style={{ fontSize: 13, marginTop: 6, color: "#94A3B8" }}>Built for students, everywhere</p>
     </div>
   );
 }
