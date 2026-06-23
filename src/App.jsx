@@ -1178,7 +1178,7 @@ function SignInScreen({ onSignedIn }) {
 function SplashScreen() {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: "#080D1E" }}>
-      <div style={{ fontSize: 64, marginBottom: 16 }}>{"🎯"}</div>
+     <img src="/icon.png" style={{ width: 100, height: 100, marginBottom: 16, borderRadius: 22 }} alt="AceBoard" />
       <div style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>Ace<span style={{ color: "#3B82F6" }}>Board</span></div>
       <p style={{ fontSize: 13, marginTop: 6, color: "#94A3B8" }}>Built for students, everywhere</p>
     </div>
