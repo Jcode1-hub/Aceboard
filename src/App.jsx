@@ -1034,11 +1034,15 @@ function ResultsScreen({ answers, questions, onRetry, onHome }) {
   const total = answers.length;
   const pct = Math.round((correct / total) * 100);
 
-  const grade = pct >= 80 ? { label: "A1 🏆", color: "#22C55E" } :
-                pct >= 70 ? { label: "B2 ⭐", color: "#3B82F6" } :
-                pct >= 60 ? { label: "C4 👍", color: "#F59E0B" } :
-                pct >= 50 ? { label: "C6 📖", color: "#F97316" } :
-                            { label: "F9 💪", color: "#EF4444" };
+  const grade = pct >= 75 ? { label: "A1 🏆", color: "#22C55E", remark: "Excellent" } :
+                pct >= 70 ? { label: "B2 ⭐", color: "#22C55E", remark: "Very Good" } :
+                pct >= 65 ? { label: "B3 ⭐", color: "#3B82F6", remark: "Good" } :
+                pct >= 60 ? { label: "C4 👍", color: "#3B82F6", remark: "Credit" } :
+                pct >= 55 ? { label: "C5 👍", color: "#F59E0B", remark: "Credit" } :
+                pct >= 50 ? { label: "C6 📖", color: "#F59E0B", remark: "Credit" } :
+                pct >= 45 ? { label: "D7 📖", color: "#F97316", remark: "Pass" } :
+                pct >= 40 ? { label: "E8 ⚠️", color: "#F97316", remark: "Pass" } :
+                            { label: "F9 💪", color: "#EF4444", remark: "Fail" };
 
   const bySubject = {};
   answers.forEach((a, i) => {
@@ -1054,6 +1058,7 @@ function ResultsScreen({ answers, questions, onRetry, onHome }) {
         <div style={{ fontSize: 60, marginBottom: 8 }}>{pct >= 70 ? "🎉" : pct >= 50 ? "💪" : "📚"}</div>
         <div style={{ fontSize: 56, fontWeight: 900, color: grade.color, letterSpacing: "-0.04em" }}>{pct}%</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: grade.color, marginTop: 4 }}>{grade.label}</div>
+        <div style={{ fontSize: 13, color: "#94A3B8", marginTop: 2 }}>{grade.remark}</div>
         <div style={{ ...S.body, marginTop: 8 }}>{correct} of {total} correct</div>
       </div>
 
@@ -1089,7 +1094,7 @@ function ResultsScreen({ answers, questions, onRetry, onHome }) {
               <span style={{ fontSize: 13, fontWeight: 700, color: "#F59E0B" }}>Study Tip</span>
             </div>
             <p style={{ ...S.body, fontSize: 13, margin: 0 }}>
-              You scored {pct}%. Review the explanations for missed questions and retry. Aim for 80%+ (A1 level) before exam day.
+              You scored {pct}%. Review the explanations for missed questions and retry. Aim for 75%+ (A1 level) before exam day.
             </p>
           </div>
         )}
@@ -1940,11 +1945,10 @@ function AboutScreen({ user, onSignOut }) {
         </div>
 
         <div style={S.card}>
-          <p style={{ ...S.label, marginBottom: 12 }}>Links</p>
+          <p style={{ ...S.label, marginBottom: 12 }}>About the Builder</p>
           <div style={S.gap(10)}>
             {[
-              { label: "Portfolio", url: "https://judahkayode.netlify.app", icon: "external" },
-              { label: "GitHub", url: "https://github.com/Jcode1-hub", icon: "external" },
+              { label: "Get to know more about Judah", url: "https://judahkayode.netlify.app", icon: "external" },
             ].map(({ label, url, icon }) => (
               <a key={label} href={url} target="_blank" rel="noopener noreferrer" style={{ ...S.row(10), textDecoration: "none", padding: "12px 14px", backgroundColor: "#111827", borderRadius: 12, border: "1px solid #1E2A4A" }}>
                 <span style={{ fontSize: 14, color: "#F0F2FF", fontWeight: 600, flex: 1 }}>{label}</span>
