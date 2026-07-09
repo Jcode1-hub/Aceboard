@@ -830,7 +830,7 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
         {/* Exam tiles */}
         <div>
           <p style={{ ...S.label, marginBottom: 12 }}>{profile?.exams?.length ? "Your Exams" : "Select Exam"}</p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
             {myExams.map(exam => (
               <button key={exam} onClick={() => onStart(exam)} style={{ ...S.cardAlt, border: "1px solid #1E2A4A", cursor: "pointer", textAlign: "left", padding: "14px 14px" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF", marginBottom: 2 }}>{exam}</div>
@@ -1369,7 +1369,7 @@ function AnalyticsScreen({ stats, allHistory, profile }) {
         </div>
 
         {/* Summary */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
           {[
             { label: "Total Answered", val: stats.total, icon: "book", color: "#3B82F6" },
             { label: "Correct", val: stats.correct, icon: "check", color: "#22C55E" },
@@ -2256,7 +2256,7 @@ function OnboardingScreen({ onComplete }) {
               <h1 style={{ ...S.h1, marginTop: 8 }}>Which exams are<br />you taking?</h1>
               <p style={{ ...S.body, marginTop: 6 }}>Select all that apply — you can change this later.</p>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
               {EXAMS.map(exam => (
                 <button
                   key={exam}
@@ -2483,7 +2483,7 @@ export default function AceBoard() {
       {tab === "bookmarks" && <BookmarksScreen bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onStartBookmarkQuiz={() => handleStart("practice")} />}
       {tab === "about" && <AboutScreen user={user} onSignOut={handleSignOut} />}
 
-      <nav style={{ ...S.nav, maxWidth: shellMaxWidth }}>
+      <nav style={{ ...S.nav, maxWidth: Math.min(shellMaxWidth, 600) }}>
         {navItems.map(({ id, label, icon }) => (
           <button key={id} style={S.navBtn(tab === id)} onClick={() => setTab(id)}>
             <Icon name={icon} size={20} color={tab === id ? "#3B82F6" : "#4A5568"} />
