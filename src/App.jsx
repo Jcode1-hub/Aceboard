@@ -687,6 +687,8 @@ function WheelPicker({ options, value, onChange, itemHeight = 44, visibleCount =
         ))}
         <div style={{ height: padding }} />
       </div>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: padding, background: "linear-gradient(180deg, #0D1326 0%, rgba(13,19,38,0) 100%)", pointerEvents: "none", zIndex: 3 }} />
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: padding, background: "linear-gradient(0deg, #0D1326 0%, rgba(13,19,38,0) 100%)", pointerEvents: "none", zIndex: 3 }} />
     </div>
   );
 }
