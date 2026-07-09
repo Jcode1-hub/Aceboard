@@ -1077,7 +1077,7 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const choose = (i) => {
     if (revealed) return;
     setSelected(i);
-    if (config.mode === "practice") setRevealed(true);
+    if (config.mode === "practice" || config.mode === "mock") setRevealed(true);
   };
 
   const next = () => {
@@ -1192,7 +1192,7 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
 }
 
 // ── RESULTS SCREEN ────────────────────────────────────────────────────────────
-function ResultsScreen({ answers, questions, onRetry, onHome }) {
+function ResultsScreen({ answers, questions, mode, onRetry, onHome, onReview }) {
   const correct = answers.filter(a => a.correct).length;
   const total = answers.length;
   const pct = Math.round((correct / total) * 100);
@@ -1262,8 +1262,83 @@ function ResultsScreen({ answers, questions, onRetry, onHome }) {
           </div>
         )}
 
+        {mode === "practice" && (
+          <button style={S.btnSecondary} onClick={onReview}>Review Answers</button>
+        )}
         <button style={S.btnPrimary} onClick={onRetry}>Try Again</button>
         <button style={S.btnSecondary} onClick={onHome}>Back to Home</button>
+      </div>
+    </div>
+  );
+}
+
+// ── REVIEW SCREEN (Practice mode only) ───────────────────────────────────────
+function ReviewScreen({ answers, questions, onBack }) {
+  const [idx, setIdx] = useState(0);
+  const q = questions[idx];
+  const a = answers[idx];
+  const optLabel = ["A", "B", "C", "D"];
+
+  const optionStyle = (i) => {
+    const base = { padding: "14px 16px", borderRadius: 12, border: "1.5px solid", fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 12 };
+    if (i === q.answer) return { ...base, backgroundColor: "#052E16", borderColor: "#22C55E", color: "#86EFAC" };
+    if (i === a.selected && i !== q.answer) return { ...base, backgroundColor: "#2D1515", borderColor: "#EF4444", color: "#FCA5A5" };
+    return { ...base, backgroundColor: "#0D1326", borderColor: "#1E2A4A", color: "#4A5568" };
+  };
+
+  return (
+    <div style={S.screen}>
+      <div style={{ ...S.header, paddingBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0 }}>
+            <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Results</span></div>
+          </button>
+          <span style={{ ...S.small }}>{idx + 1} of {questions.length}</span>
+        </div>
+        <div style={S.progressBar(((idx + 1) / questions.length) * 100)}>
+          <div style={S.progressFill(((idx + 1) / questions.length) * 100, a.correct ? "#22C55E" : "#EF4444")} />
+        </div>
+      </div>
+
+      <div style={{ ...S.px, ...S.gap(14) }}>
+        <div style={S.row(6)}>
+          <span style={S.pill()}>{q.subject}</span>
+          <span style={S.pill("#1A1A2E", "#8B5CF6")}>{q.topic}</span>
+          <span style={a.correct ? S.pill("#052E16", "#22C55E") : S.pill("#2D1515", "#EF4444")}>{a.correct ? "Correct" : "Incorrect"}</span>
+        </div>
+
+        <div style={{ ...S.card, padding: "18px" }}>
+          <p style={{ fontSize: 15, lineHeight: 1.7, color: "#E2E8F0", margin: 0, fontWeight: 500 }}>{q.question}</p>
+        </div>
+
+        <div style={S.gap(8)}>
+          {q.options.map((opt, i) => (
+            <div key={i} style={optionStyle(i)}>
+              <span style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: "#1E2A4A", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{optLabel[i]}</span>
+              <span>{opt}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ backgroundColor: "#051A0F", border: "1px solid #14532D", borderRadius: 14, padding: 16 }}>
+          <div style={{ ...S.row(8), marginBottom: 8 }}>
+            <Icon name="check" size={16} color="#22C55E" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#22C55E" }}>Explanation</span>
+          </div>
+          <p style={{ ...S.body, fontSize: 13, margin: "0 0 10px" }}>{q.explanation}</p>
+          <p style={{ fontSize: 11, color: "#374151" }}>📚 {q.source}</p>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setIdx(i => Math.max(i - 1, 0))} disabled={idx === 0}
+            style={{ flex: 1, backgroundColor: "transparent", border: "1.5px solid #1E2A4A", borderRadius: 12, padding: "12px", color: "#94A3B8", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: idx === 0 ? 0.3 : 1 }}>
+            ← Prev
+          </button>
+          <button onClick={() => setIdx(i => Math.min(i + 1, questions.length - 1))} disabled={idx === questions.length - 1}
+            style={{ flex: 1, backgroundColor: "#3B82F6", border: "none", borderRadius: 12, padding: "12px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: idx === questions.length - 1 ? 0.3 : 1 }}>
+            Next →
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2461,7 +2536,13 @@ export default function AceBoard() {
 
   if (screen === "results") return (
     <div style={shellStyle}>
-      <ResultsScreen answers={quizAnswers} questions={quizPool} onRetry={handleRetry} onHome={handleHome} />
+      <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} />
+    </div>
+  );
+
+  if (screen === "review") return (
+    <div style={shellStyle}>
+      <ReviewScreen answers={quizAnswers} questions={quizPool} onBack={() => setScreen("results")} />
     </div>
   );
 
