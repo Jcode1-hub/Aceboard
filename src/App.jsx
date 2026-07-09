@@ -765,20 +765,12 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
         {/* Quick start */}
         <div>
           <p style={{ ...S.label, marginBottom: 12 }}>Quick Start</p>
-          <div style={S.gap(10)}>
-            <button style={S.btnPrimary} onClick={() => onStart("exam")}>
-              <div style={S.row(8)}>
-                <Icon name="clock" size={18} color="#fff" />
-                <span>Start Exam Mode</span>
-              </div>
-            </button>
-            <button style={S.btnSecondary} onClick={() => onStart("practice")}>
-              <div style={S.row(8)}>
-                <Icon name="book" size={18} color="#3B82F6" />
-                <span>Practice Mode</span>
-              </div>
-            </button>
-          </div>
+          <button style={S.btnPrimary} onClick={() => onStart()}>
+            <div style={S.row(8)}>
+              <Icon name="zap" size={18} color="#fff" />
+              <span>Practice Questions</span>
+            </div>
+          </button>
         </div>
 
         {/* Exam tiles */}
@@ -786,7 +778,7 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
           <p style={{ ...S.label, marginBottom: 12 }}>{profile?.exams?.length ? "Your Exams" : "Select Exam"}</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {myExams.map(exam => (
-              <button key={exam} onClick={() => onStart("practice", exam)} style={{ ...S.cardAlt, border: "1px solid #1E2A4A", cursor: "pointer", textAlign: "left", padding: "14px 14px" }}>
+              <button key={exam} onClick={() => onStart(exam)} style={{ ...S.cardAlt, border: "1px solid #1E2A4A", cursor: "pointer", textAlign: "left", padding: "14px 14px" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF", marginBottom: 2 }}>{exam}</div>
                 <div style={S.small}>{QUESTIONS.filter(q => q.exam === exam).length} questions</div>
               </button>
@@ -812,34 +804,56 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
 }
 
 // ── QUIZ CONFIG SCREEN ─────────────────────────────────────────────────────────
-function QuizConfig({ mode, defaultExam, onBegin, onBack }) {
-  const [exam, setExam] = useState(defaultExam || "WAEC");
-  const [subject, setSubject] = useState("All Subjects");
-  const [count, setCount] = useState(10);
+const MOCK_ELIGIBLE = ["WAEC", "JAMB", "NECO"];
+const TIMER_PRESETS = [15, 30, 45, 60, 90, 120];
 
-  const available = QUESTIONS.filter(q =>
-    q.exam === exam && (subject === "All Subjects" || q.subject === subject)
-  );
+function PracticeSetup({ profile, defaultExam, onBegin, onBack }) {
+  const myExams = profile?.exams?.length ? profile.exams : EXAMS;
+  const [exam, setExam] = useState(defaultExam || myExams[0] || "WAEC");
+  const [subject, setSubject] = useState("All Subjects");
+  const [topic, setTopic] = useState("All Topics");
+  const [year, setYear] = useState("All Years");
+  const [count, setCount] = useState(10);
+  const [timerMinutes, setTimerMinutes] = useState(30);
+  const [mode, setMode] = useState("practice");
 
   const subjectsForExam = ["All Subjects", ...new Set(QUESTIONS.filter(q => q.exam === exam).map(q => q.subject))];
+  const topicsForSubject = subject === "All Subjects" ? ["All Topics"] :
+    ["All Topics", ...new Set(QUESTIONS.filter(q => q.exam === exam && q.subject === subject).map(q => q.topic))];
+  const yearsForTopic = ["All Years", ...new Set(QUESTIONS.filter(q =>
+    q.exam === exam &&
+    (subject === "All Subjects" || q.subject === subject) &&
+    (topic === "All Topics" || q.topic === topic)
+  ).map(q => q.year))].sort((a, b) => (a === "All Years" ? -1 : b === "All Years" ? 1 : b - a));
+
+  const available = QUESTIONS.filter(q =>
+    q.exam === exam &&
+    (subject === "All Subjects" || q.subject === subject) &&
+    (topic === "All Topics" || q.topic === topic) &&
+    (year === "All Years" || q.year === year)
+  );
+
+  const showMock = MOCK_ELIGIBLE.includes(exam);
+  const modeLabel = mode === "exam" ? "Exam Mode" : mode === "mock" ? "Mock Mode" : "Practice Mode";
+  const ctaLabel = mode === "exam" ? "Start Timed Exam →" : mode === "mock" ? "Start Mock Test →" : "Start Practice →";
 
   return (
-    <div style={S.screen}>
+    <div style={{ ...S.screen, overflowY: "auto" }}>
       <div style={S.header}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
           <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
         </button>
-        <span style={S.label}>{mode === "exam" ? "⏱ Exam Mode" : "📖 Practice Mode"}</span>
+        <span style={S.label}>Practice Questions</span>
         <h1 style={{ ...S.h1, marginTop: 6, fontSize: 22 }}>Configure your<br />session</h1>
       </div>
 
       <div style={{ ...S.px, ...S.gap(20) }}>
-        {/* Exam */}
+        {/* Exam - only shows student's selected exams */}
         <div>
           <p style={{ ...S.label, marginBottom: 10 }}>Exam Body</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {EXAMS.map(e => (
-              <button key={e} style={S.btnSmall(exam === e)} onClick={() => { setExam(e); setSubject("All Subjects"); }}>{e}</button>
+            {myExams.map(e => (
+              <button key={e} style={S.btnSmall(exam === e)} onClick={() => { setExam(e); setSubject("All Subjects"); setTopic("All Topics"); setYear("All Years"); if (!MOCK_ELIGIBLE.includes(e) && mode === "mock") setMode("practice"); }}>{e}</button>
             ))}
           </div>
         </div>
@@ -849,7 +863,31 @@ function QuizConfig({ mode, defaultExam, onBegin, onBack }) {
           <p style={{ ...S.label, marginBottom: 10 }}>Subject</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {subjectsForExam.map(s => (
-              <button key={s} style={S.btnSmall(subject === s)} onClick={() => setSubject(s)}>{s}</button>
+              <button key={s} style={S.btnSmall(subject === s)} onClick={() => { setSubject(s); setTopic("All Topics"); setYear("All Years"); }}>{s}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Topic */}
+        <div>
+          <p style={{ ...S.label, marginBottom: 10 }}>Topic</p>
+          {subject === "All Subjects" ? (
+            <p style={{ ...S.small }}>Pick a subject to filter by topic.</p>
+          ) : (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {topicsForSubject.map(t => (
+                <button key={t} style={S.btnSmall(topic === t)} onClick={() => { setTopic(t); setYear("All Years"); }}>{t}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Year */}
+        <div>
+          <p style={{ ...S.label, marginBottom: 10 }}>Year</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {yearsForTopic.map(y => (
+              <button key={y} style={S.btnSmall(year === y)} onClick={() => setYear(y)}>{y}</button>
             ))}
           </div>
         </div>
@@ -864,19 +902,42 @@ function QuizConfig({ mode, defaultExam, onBegin, onBack }) {
           </div>
         </div>
 
+        {/* Timer */}
+        <div>
+          <p style={{ ...S.label, marginBottom: 10 }}>Time Limit</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {TIMER_PRESETS.map(m => (
+              <button key={m} style={S.btnSmall(timerMinutes === m)} onClick={() => setTimerMinutes(m)}>{m}m</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Mode */}
+        <div>
+          <p style={{ ...S.label, marginBottom: 10 }}>Mode</p>
+          <div style={S.row(8)}>
+            <button style={S.btnSmall(mode === "practice")} onClick={() => setMode("practice")}>Practice</button>
+            <button style={S.btnSmall(mode === "exam")} onClick={() => setMode("exam")}>Exam</button>
+            {showMock && <button style={S.btnSmall(mode === "mock")} onClick={() => setMode("mock")}>Mock</button>}
+          </div>
+          {!showMock && (
+            <p style={{ ...S.small, marginTop: 8 }}>Mock mode is only available for WAEC, JAMB, and NECO.</p>
+          )}
+        </div>
+
         <div style={S.card}>
           <div style={S.row(8)}>
             <Icon name="info" size={16} color="#3B82F6" />
-            <span style={{ ...S.body, fontSize: 13 }}><b style={{ color: "#F0F2FF" }}>{available.length}</b> questions match your filters</span>
+            <span style={{ ...S.body, fontSize: 13 }}><b style={{ color: "#F0F2FF" }}>{available.length}</b> questions match your filters · {modeLabel} · {timerMinutes}m</span>
           </div>
         </div>
 
         <button
           style={{ ...S.btnPrimary, opacity: available.length === 0 ? 0.4 : 1 }}
           disabled={available.length === 0}
-          onClick={() => onBegin({ exam, subject, count: Math.min(count, available.length), mode })}
+          onClick={() => onBegin({ exam, subject, topic, year, count: Math.min(count, available.length), mode, timerMinutes })}
         >
-          {mode === "exam" ? "Start Timed Exam →" : "Start Practice →"}
+          {ctaLabel}
         </button>
       </div>
     </div>
@@ -2224,8 +2285,7 @@ export default function AceBoard() {
     await signOut(auth);
   };
 
-  const handleStart = (mode, exam = null) => {
-    setQuizMode(mode);
+  const handleStart = (exam = null) => {
     setDefaultExam(exam || profile?.exams?.[0] || null);
     setScreen("config");
   };
@@ -2276,7 +2336,7 @@ export default function AceBoard() {
   // If in quiz flow, render quiz screens ignoring tabs
   if (screen === "config") return (
     <div style={S.app}>
-      <QuizConfig mode={quizMode} defaultExam={defaultExam} onBegin={handleBegin} onBack={() => setScreen("home")} />
+      <PracticeSetup profile={profile} defaultExam={defaultExam} onBegin={handleBegin} onBack={() => setScreen("home")} />
     </div>
   );
 
