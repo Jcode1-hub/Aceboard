@@ -654,6 +654,58 @@ const S = {
   progressFill: (pct, color = "#3B82F6") => ({ height: "100%", width: `${pct}%`, backgroundColor: color, borderRadius: 3, transition: "width 0.6s ease" }),
 };
 
+// ── WHEEL PICKER (iOS-style scroll picker) ───────────────────────────────────
+function WheelPicker({ options, value, onChange, itemHeight = 44, visibleCount = 5 }) {
+  const ref = useRef(null);
+  const containerHeight = itemHeight * visibleCount;
+  const padding = (containerHeight - itemHeight) / 2;
+
+  useEffect(() => {
+    const idx = options.indexOf(value);
+    if (ref.current && idx >= 0) ref.current.scrollTop = idx * itemHeight;
+  }, []);
+
+  const handleScroll = () => {
+    clearTimeout(ref.current._t);
+    ref.current._t = setTimeout(() => {
+      const idx = Math.round(ref.current.scrollTop / itemHeight);
+      const clamped = Math.max(0, Math.min(options.length - 1, idx));
+      ref.current.scrollTo({ top: clamped * itemHeight, behavior: "smooth" });
+      onChange(options[clamped]);
+    }, 120);
+  };
+
+  return (
+    <div style={{ position: "relative", height: containerHeight, overflow: "hidden", flex: 1 }}>
+      <div style={{ position: "absolute", top: padding, left: 0, right: 0, height: itemHeight, backgroundColor: "#1E3A5F", borderRadius: 10, pointerEvents: "none", zIndex: 1 }} />
+      <div ref={ref} onScroll={handleScroll} style={{ height: containerHeight, overflowY: "scroll", scrollSnapType: "y mandatory", position: "relative", zIndex: 2 }}>
+        <div style={{ height: padding }} />
+        {options.map((opt, i) => (
+          <div key={i} style={{ height: itemHeight, display: "flex", alignItems: "center", justifyContent: "center", scrollSnapAlign: "center", fontSize: opt === value ? 18 : 15, fontWeight: opt === value ? 800 : 500, color: opt === value ? "#F0F2FF" : "#64748B", transition: "all 0.15s" }}>
+            {opt}
+          </div>
+        ))}
+        <div style={{ height: padding }} />
+      </div>
+    </div>
+  );
+}
+
+function PickerModal({ title, children, onClose, onConfirm }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ backgroundColor: "#0D1326", borderRadius: "20px 20px 0 0", padding: 20, width: "100%", maxWidth: 480, boxShadow: "0 -10px 40px rgba(0,0,0,0.5)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>{title}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#64748B", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+        </div>
+        {children}
+        <button onClick={onConfirm} style={{ ...S.btnPrimary, marginTop: 16 }}>Done</button>
+      </div>
+    </div>
+  );
+}
+
 // ── STREAK DATA ───────────────────────────────────────────────────────────────
 const days = ["M", "T", "W", "T", "F", "S", "S"];
 const streakDays = [true, true, true, false, true, true, false];
@@ -805,37 +857,50 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
 
 // ── QUIZ CONFIG SCREEN ─────────────────────────────────────────────────────────
 const MOCK_ELIGIBLE = ["WAEC", "JAMB", "NECO"];
-const TIMER_PRESETS = [15, 30, 45, 60, 90, 120];
 
 function PracticeSetup({ profile, defaultExam, onBegin, onBack }) {
   const myExams = profile?.exams?.length ? profile.exams : EXAMS;
   const [exam, setExam] = useState(defaultExam || myExams[0] || "WAEC");
-  const [subject, setSubject] = useState("All Subjects");
+  const [subjects, setSubjects] = useState([]); // empty = all subjects
   const [topic, setTopic] = useState("All Topics");
   const [year, setYear] = useState("All Years");
   const [count, setCount] = useState(10);
-  const [timerMinutes, setTimerMinutes] = useState(30);
+  const [hours, setHours] = useState(0);
+  const [minutes, setMinutes] = useState(30);
+  const [seconds, setSeconds] = useState(0);
   const [mode, setMode] = useState("practice");
+  const [openPicker, setOpenPicker] = useState(null); // "topic" | "year" | "count" | "time" | null
+  const [tempTime, setTempTime] = useState({ h: 0, m: 30, s: 0 });
 
-  const subjectsForExam = ["All Subjects", ...new Set(QUESTIONS.filter(q => q.exam === exam).map(q => q.subject))];
-  const topicsForSubject = subject === "All Subjects" ? ["All Topics"] :
-    ["All Topics", ...new Set(QUESTIONS.filter(q => q.exam === exam && q.subject === subject).map(q => q.topic))];
-  const yearsForTopic = ["All Years", ...new Set(QUESTIONS.filter(q =>
+  const subjectsForExam = [...new Set(QUESTIONS.filter(q => q.exam === exam).map(q => q.subject))];
+  const singleSubject = subjects.length === 1 ? subjects[0] : null;
+  const topicsForSubject = singleSubject ? ["All Topics", ...new Set(QUESTIONS.filter(q => q.exam === exam && q.subject === singleSubject).map(q => q.topic))] : ["All Topics"];
+  const yearsAvailable = ["All Years", ...new Set(QUESTIONS.filter(q =>
     q.exam === exam &&
-    (subject === "All Subjects" || q.subject === subject) &&
-    (topic === "All Topics" || q.topic === topic)
+    (subjects.length === 0 || subjects.includes(q.subject)) &&
+    (!singleSubject || topic === "All Topics" || q.topic === topic)
   ).map(q => q.year))].sort((a, b) => (a === "All Years" ? -1 : b === "All Years" ? 1 : b - a));
 
   const available = QUESTIONS.filter(q =>
     q.exam === exam &&
-    (subject === "All Subjects" || q.subject === subject) &&
-    (topic === "All Topics" || q.topic === topic) &&
+    (subjects.length === 0 || subjects.includes(q.subject)) &&
+    (!singleSubject || topic === "All Topics" || q.topic === topic) &&
     (year === "All Years" || q.year === year)
   );
+
+  const countOptions = [5, 10, 15, 20, 25, 30, 40, 50].filter(n => n <= Math.max(available.length, 5));
+  if (countOptions.length === 0) countOptions.push(Math.max(available.length, 1));
 
   const showMock = MOCK_ELIGIBLE.includes(exam);
   const modeLabel = mode === "exam" ? "Exam Mode" : mode === "mock" ? "Mock Mode" : "Practice Mode";
   const ctaLabel = mode === "exam" ? "Start Timed Exam →" : mode === "mock" ? "Start Mock Test →" : "Start Practice →";
+  const timerSeconds = hours * 3600 + minutes * 60 + seconds;
+  const timeLabel = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  const toggleSubject = (s) => {
+    setSubjects(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+    setTopic("All Topics"); setYear("All Years");
+  };
 
   return (
     <div style={{ ...S.screen, overflowY: "auto" }}>
@@ -853,63 +918,64 @@ function PracticeSetup({ profile, defaultExam, onBegin, onBack }) {
           <p style={{ ...S.label, marginBottom: 10 }}>Exam Body</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {myExams.map(e => (
-              <button key={e} style={S.btnSmall(exam === e)} onClick={() => { setExam(e); setSubject("All Subjects"); setTopic("All Topics"); setYear("All Years"); if (!MOCK_ELIGIBLE.includes(e) && mode === "mock") setMode("practice"); }}>{e}</button>
+              <button key={e} style={S.btnSmall(exam === e)} onClick={() => { setExam(e); setSubjects([]); setTopic("All Topics"); setYear("All Years"); if (!MOCK_ELIGIBLE.includes(e) && mode === "mock") setMode("practice"); }}>{e}</button>
             ))}
           </div>
         </div>
 
-        {/* Subject */}
+        {/* Subject - multi-select checklist */}
         <div>
-          <p style={{ ...S.label, marginBottom: 10 }}>Subject</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <p style={{ ...S.label, marginBottom: 10 }}>Subjects <span style={{ color: "#64748B", fontWeight: 500 }}>(none checked = all)</span></p>
+          <div style={S.gap(8)}>
             {subjectsForExam.map(s => (
-              <button key={s} style={S.btnSmall(subject === s)} onClick={() => { setSubject(s); setTopic("All Topics"); setYear("All Years"); }}>{s}</button>
+              <button key={s} onClick={() => toggleSubject(s)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", backgroundColor: subjects.includes(s) ? "#1E3A5F" : "#111827", border: `1px solid ${subjects.includes(s) ? "#3B82F6" : "#1E2A4A"}`, borderRadius: 10, cursor: "pointer", width: "100%", textAlign: "left" }}>
+                <div style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${subjects.includes(s) ? "#3B82F6" : "#4A5568"}`, backgroundColor: subjects.includes(s) ? "#3B82F6" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {subjects.includes(s) && <Icon name="check" size={12} color="#fff" />}
+                </div>
+                <span style={{ fontSize: 14, color: "#F0F2FF", fontWeight: 600 }}>{s}</span>
+              </button>
             ))}
           </div>
         </div>
 
-        {/* Topic */}
+        {/* Topic - wheel picker */}
         <div>
           <p style={{ ...S.label, marginBottom: 10 }}>Topic</p>
-          {subject === "All Subjects" ? (
-            <p style={{ ...S.small }}>Pick a subject to filter by topic.</p>
+          {!singleSubject ? (
+            <p style={{ ...S.small }}>Check exactly one subject to filter by topic.</p>
           ) : (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {topicsForSubject.map(t => (
-                <button key={t} style={S.btnSmall(topic === t)} onClick={() => { setTopic(t); setYear("All Years"); }}>{t}</button>
-              ))}
-            </div>
+            <button onClick={() => setOpenPicker("topic")} style={{ ...S.cardAlt, width: "100%", textAlign: "left", cursor: "pointer", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 14, color: "#F0F2FF", fontWeight: 600 }}>{topic}</span>
+              <Icon name="chevron_right" size={16} color="#3B82F6" />
+            </button>
           )}
         </div>
 
-        {/* Year */}
+        {/* Year - wheel picker */}
         <div>
           <p style={{ ...S.label, marginBottom: 10 }}>Year</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {yearsForTopic.map(y => (
-              <button key={y} style={S.btnSmall(year === y)} onClick={() => setYear(y)}>{y}</button>
-            ))}
-          </div>
+          <button onClick={() => setOpenPicker("year")} style={{ ...S.cardAlt, width: "100%", textAlign: "left", cursor: "pointer", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 14, color: "#F0F2FF", fontWeight: 600 }}>{year}</span>
+            <Icon name="chevron_right" size={16} color="#3B82F6" />
+          </button>
         </div>
 
-        {/* Count */}
+        {/* Count - wheel picker */}
         <div>
           <p style={{ ...S.label, marginBottom: 10 }}>No. of Questions</p>
-          <div style={S.row(8)}>
-            {[5, 10, 15, 20].map(n => (
-              <button key={n} style={S.btnSmall(count === n)} onClick={() => setCount(n)}>{n}</button>
-            ))}
-          </div>
+          <button onClick={() => setOpenPicker("count")} style={{ ...S.cardAlt, width: "100%", textAlign: "left", cursor: "pointer", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 14, color: "#F0F2FF", fontWeight: 600 }}>{count} questions</span>
+            <Icon name="chevron_right" size={16} color="#3B82F6" />
+          </button>
         </div>
 
-        {/* Timer */}
+        {/* Time - HH:MM:SS wheel picker */}
         <div>
           <p style={{ ...S.label, marginBottom: 10 }}>Time Limit</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {TIMER_PRESETS.map(m => (
-              <button key={m} style={S.btnSmall(timerMinutes === m)} onClick={() => setTimerMinutes(m)}>{m}m</button>
-            ))}
-          </div>
+          <button onClick={() => { setTempTime({ h: hours, m: minutes, s: seconds }); setOpenPicker("time"); }} style={{ ...S.cardAlt, width: "100%", textAlign: "left", cursor: "pointer", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 14, color: "#F0F2FF", fontWeight: 600 }}>{timeLabel}</span>
+            <Icon name="chevron_right" size={16} color="#3B82F6" />
+          </button>
         </div>
 
         {/* Mode */}
@@ -928,18 +994,49 @@ function PracticeSetup({ profile, defaultExam, onBegin, onBack }) {
         <div style={S.card}>
           <div style={S.row(8)}>
             <Icon name="info" size={16} color="#3B82F6" />
-            <span style={{ ...S.body, fontSize: 13 }}><b style={{ color: "#F0F2FF" }}>{available.length}</b> questions match your filters · {modeLabel} · {timerMinutes}m</span>
+            <span style={{ ...S.body, fontSize: 13 }}><b style={{ color: "#F0F2FF" }}>{available.length}</b> questions match your filters · {modeLabel} · {timeLabel}</span>
           </div>
         </div>
 
         <button
           style={{ ...S.btnPrimary, opacity: available.length === 0 ? 0.4 : 1 }}
           disabled={available.length === 0}
-          onClick={() => onBegin({ exam, subject, topic, year, count: Math.min(count, available.length), mode, timerMinutes })}
+          onClick={() => onBegin({ exam, subjects, topic, year, count: Math.min(count, available.length), mode, timerSeconds })}
         >
           {ctaLabel}
         </button>
       </div>
+
+      {openPicker === "topic" && (
+        <PickerModal title="Select Topic" onClose={() => setOpenPicker(null)} onConfirm={() => setOpenPicker(null)}>
+          <WheelPicker options={topicsForSubject} value={topic} onChange={setTopic} />
+        </PickerModal>
+      )}
+
+      {openPicker === "year" && (
+        <PickerModal title="Select Year" onClose={() => setOpenPicker(null)} onConfirm={() => setOpenPicker(null)}>
+          <WheelPicker options={yearsAvailable} value={year} onChange={setYear} />
+        </PickerModal>
+      )}
+
+      {openPicker === "count" && (
+        <PickerModal title="No. of Questions" onClose={() => setOpenPicker(null)} onConfirm={() => setOpenPicker(null)}>
+          <WheelPicker options={countOptions} value={count} onChange={setCount} />
+        </PickerModal>
+      )}
+
+      {openPicker === "time" && (
+        <PickerModal title="Time Limit" onClose={() => setOpenPicker(null)} onConfirm={() => { setHours(tempTime.h); setMinutes(tempTime.m); setSeconds(tempTime.s); setOpenPicker(null); }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            <WheelPicker options={[0, 1, 2, 3]} value={tempTime.h} onChange={(v) => setTempTime(t => ({ ...t, h: v }))} />
+            <WheelPicker options={Array.from({ length: 60 }, (_, i) => i)} value={tempTime.m} onChange={(v) => setTempTime(t => ({ ...t, m: v }))} />
+            <WheelPicker options={Array.from({ length: 60 }, (_, i) => i)} value={tempTime.s} onChange={(v) => setTempTime(t => ({ ...t, s: v }))} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-around", marginTop: 6 }}>
+            <span style={{ ...S.small }}>hrs</span><span style={{ ...S.small }}>min</span><span style={{ ...S.small }}>sec</span>
+          </div>
+        </PickerModal>
+      )}
     </div>
   );
 }
@@ -947,18 +1044,21 @@ function PracticeSetup({ profile, defaultExam, onBegin, onBack }) {
 // ── QUIZ SCREEN ───────────────────────────────────────────────────────────────
 function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const pool = QUESTIONS.filter(q =>
-    q.exam === config.exam && (config.subject === "All Subjects" || q.subject === config.subject)
+    q.exam === config.exam &&
+    (!config.subjects || config.subjects.length === 0 || config.subjects.includes(q.subject)) &&
+    (!config.topic || config.topic === "All Topics" || q.topic === config.topic) &&
+    (!config.year || config.year === "All Years" || q.year === config.year)
   ).slice(0, config.count);
 
   const [idx, setIdx] = useState(0);
   const [selected, setSelected] = useState(null);
   const [revealed, setRevealed] = useState(false);
   const [answers, setAnswers] = useState([]);
-  const [timeLeft, setTimeLeft] = useState(config.mode === "exam" ? config.count * 90 : null);
+  const [timeLeft, setTimeLeft] = useState(config.mode === "exam" || config.mode === "mock" ? (config.timerSeconds || config.count * 90) : null);
   const timerRef = useRef(null);
 
   useEffect(() => {
-    if (config.mode === "exam" && timeLeft > 0) {
+    if ((config.mode === "exam" || config.mode === "mock") && timeLeft > 0) {
       timerRef.current = setInterval(() => setTimeLeft(t => {
         if (t <= 1) { clearInterval(timerRef.current); finish(); return 0; }
         return t - 1;
@@ -2227,6 +2327,17 @@ export default function AceBoard() {
   const [quizPool, setQuizPool] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [stats, setStats] = useState({ total: 0, correct: 0 });
+  const [viewportWidth, setViewportWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 430);
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => { window.removeEventListener("resize", onResize); window.removeEventListener("orientationchange", onResize); };
+  }, []);
+
+  const shellMaxWidth = viewportWidth >= 700 ? Math.min(viewportWidth - 40, 900) : 430;
+  const shellStyle = { ...S.app, maxWidth: shellMaxWidth };
 
   // Splash timer
   useEffect(() => {
@@ -2322,32 +2433,32 @@ export default function AceBoard() {
   if (booting || !authChecked) return <SplashScreen />;
 
   if (!user) return (
-    <div style={S.app}>
+    <div style={shellStyle}>
       <SignInScreen onSignedIn={handleSignedIn} />
     </div>
   );
 
   if (!onboarded) return (
-    <div style={S.app}>
+    <div style={shellStyle}>
       <OnboardingScreen onComplete={handleOnboardingComplete} />
     </div>
   );
 
   // If in quiz flow, render quiz screens ignoring tabs
   if (screen === "config") return (
-    <div style={S.app}>
+    <div style={shellStyle}>
       <PracticeSetup profile={profile} defaultExam={defaultExam} onBegin={handleBegin} onBack={() => setScreen("home")} />
     </div>
   );
 
   if (screen === "quiz") return (
-    <div style={S.app}>
+    <div style={shellStyle}>
       <QuizScreen config={quizConfig} bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onFinish={handleFinish} onBack={() => setScreen("config")} />
     </div>
   );
 
   if (screen === "results") return (
-    <div style={S.app}>
+    <div style={shellStyle}>
       <ResultsScreen answers={quizAnswers} questions={quizPool} onRetry={handleRetry} onHome={handleHome} />
     </div>
   );
@@ -2362,7 +2473,7 @@ export default function AceBoard() {
   ];
 
   return (
-    <div style={S.app}>
+    <div style={shellStyle}>
       {tab === "home" && <HomeScreen onStart={handleStart} bookmarks={bookmarks} stats={stats} profile={profile} />}
       {tab === "analytics" && <AnalyticsScreen stats={stats} profile={profile} />}
       {tab === "coach" && <AIHub onBack={() => setTab("home")} />}
@@ -2370,7 +2481,7 @@ export default function AceBoard() {
       {tab === "bookmarks" && <BookmarksScreen bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onStartBookmarkQuiz={() => handleStart("practice")} />}
       {tab === "about" && <AboutScreen user={user} onSignOut={handleSignOut} />}
 
-      <nav style={S.nav}>
+      <nav style={{ ...S.nav, maxWidth: shellMaxWidth }}>
         {navItems.map(({ id, label, icon }) => (
           <button key={id} style={S.navBtn(tab === id)} onClick={() => setTab(id)}>
             <Icon name={icon} size={20} color={tab === id ? "#3B82F6" : "#4A5568"} />
