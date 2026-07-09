@@ -1043,6 +1043,35 @@ function PracticeSetup({ profile, defaultExam, onBegin, onBack }) {
   );
 }
 
+// ── TIMER RING (draining circular countdown, TestDriller-style) ─────────────
+function TimerRing({ timeLeft, totalSeconds, size = 44 }) {
+  const stroke = 4;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = totalSeconds > 0 ? Math.max(0, Math.min(1, timeLeft / totalSeconds)) : 0;
+  const offset = circumference * (1 - pct);
+  const low = timeLeft < 60;
+  const color = low ? "#EF4444" : "#F97316";
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
+
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#1E2A4A" strokeWidth={stroke} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={stroke} fill="none"
+          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 1s linear" }} />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: 10, fontWeight: 800, color: low ? "#EF4444" : "#F0F2FF" }}>
+          {String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── QUIZ SCREEN ───────────────────────────────────────────────────────────────
 function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const pool = QUESTIONS.filter(q =>
@@ -1057,6 +1086,7 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const [revealed, setRevealed] = useState(false);
   const [answers, setAnswers] = useState([]);
   const [timeLeft, setTimeLeft] = useState(config.mode === "exam" || config.mode === "mock" ? (config.timerSeconds || config.count * 90) : null);
+  const totalSeconds = config.timerSeconds || config.count * 90;
   const timerRef = useRef(null);
 
   useEffect(() => {
@@ -1116,11 +1146,8 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
             <Icon name="x" size={22} color="#64748B" />
           </button>
           <div style={{ ...S.row(8) }}>
-            {config.mode === "exam" && (
-              <div style={{ ...S.row(6), backgroundColor: timeLeft < 60 ? "#2D1515" : "#1E2A4A", padding: "6px 12px", borderRadius: 20 }}>
-                <Icon name="clock" size={14} color={timeLeft < 60 ? "#EF4444" : "#3B82F6"} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: timeLeft < 60 ? "#EF4444" : "#F0F2FF" }}>{formatTime(timeLeft)}</span>
-              </div>
+            {(config.mode === "exam" || config.mode === "mock") && (
+              <TimerRing timeLeft={timeLeft} totalSeconds={totalSeconds} />
             )}
             <button onClick={() => onToggleBookmark(q.id)} style={{ background: "none", border: "none", cursor: "pointer" }}>
               <Icon name="bookmark" size={20} color={isBookmarked ? "#3B82F6" : "#4A5568"} />
