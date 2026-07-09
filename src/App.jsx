@@ -2338,7 +2338,7 @@ export default function AceBoard() {
     return () => { window.removeEventListener("resize", onResize); window.removeEventListener("orientationchange", onResize); };
   }, []);
 
-  const shellMaxWidth = viewportWidth >= 700 ? Math.min(viewportWidth - 40, 900) : 430;
+  const shellMaxWidth = viewportWidth; // full edge-to-edge, no cap
   const shellStyle = { ...S.app, maxWidth: shellMaxWidth };
 
   // Splash timer
