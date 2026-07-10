@@ -1170,7 +1170,7 @@ function TimerRing({ timeLeft, totalSeconds, size = 44 }) {
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const pct = totalSeconds > 0 ? Math.max(0, Math.min(1, timeLeft / totalSeconds)) : 0;
-  const offset = circumference * (1 - pct);
+  const arcLength = circumference * pct;
   const low = timeLeft < 60;
   const color = low ? "#EF4444" : "#F97316";
   const m = Math.floor(timeLeft / 60);
@@ -1181,8 +1181,8 @@ function TimerRing({ timeLeft, totalSeconds, size = 44 }) {
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
         <circle cx={size / 2} cy={size / 2} r={radius} stroke="#1E2A4A" strokeWidth={stroke} fill="none" />
         <circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={stroke} fill="none"
-          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 1s linear" }} />
+          strokeDasharray={`${arcLength} ${circumference}`} strokeDashoffset={0} strokeLinecap="round"
+          style={{ transition: "stroke-dasharray 1s linear" }} />
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <span style={{ fontSize: 10, fontWeight: 800, color: low ? "#EF4444" : "#F0F2FF" }}>
