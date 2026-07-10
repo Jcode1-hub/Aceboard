@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import * as pdfjsLib from "pdfjs-dist/build/pdf";
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -795,7 +795,27 @@ function getMonthLabels(cells, weeksBack) {
 function HomeScreen({ onStart, bookmarks, stats, profile }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modalContent, setModalContent] = useState(null); // "news" | "faq" | null
+  const [newsItems, setNewsItems] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(false);
   const totalQ = stats.total;
+
+  useEffect(() => {
+    if (modalContent !== "news") return;
+    setNewsLoading(true);
+    const fetchNews = async () => {
+      try {
+        const q = query(collection(db, "news"), orderBy("createdAt", "desc"), limit(20));
+        const snap = await getDocs(q);
+        setNewsItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (err) {
+        console.error("Failed to load news:", err);
+        setNewsItems([]);
+      } finally {
+        setNewsLoading(false);
+      }
+    };
+    fetchNews();
+  }, [modalContent]);
   const correctQ = stats.correct;
   const pct = totalQ ? Math.round((correctQ / totalQ) * 100) : 0;
   const myExams = profile?.exams?.length ? profile.exams : EXAMS;
@@ -834,12 +854,23 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
             <div onClick={e => e.stopPropagation()} style={{ backgroundColor: "#0D1326", borderRadius: "20px 20px 0 0", padding: 24, width: "100%", maxWidth: 480, maxHeight: "70vh", overflowY: "auto" }}>
               {modalContent === "news" && (<>
                 <h2 style={{ ...S.h2, marginBottom: 16 }}>News & Updates</h2>
-                <div style={S.gap(14)}>
+                {newsLoading ? (
+                  <p style={{ ...S.body, fontSize: 13 }}>Loading...</p>
+                ) : newsItems.length === 0 ? (
                   <div style={S.card}>
                     <p style={{ fontSize: 13, color: "#3B82F6", fontWeight: 700, marginBottom: 4 }}>Welcome to AceBoard</p>
                     <p style={{ ...S.body, fontSize: 13 }}>Thanks for being here early. New questions, colleges, and features are added regularly — check back here for updates.</p>
                   </div>
-                </div>
+                ) : (
+                  <div style={S.gap(14)}>
+                    {newsItems.map(item => (
+                      <div key={item.id} style={S.card}>
+                        <p style={{ fontSize: 13, color: "#3B82F6", fontWeight: 700, marginBottom: 4 }}>{item.title}</p>
+                        <p style={{ ...S.body, fontSize: 13 }}>{item.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>)}
               {modalContent === "faq" && (<>
                 <h2 style={{ ...S.h2, marginBottom: 16 }}>FAQ</h2>
