@@ -576,6 +576,37 @@ const COLLEGES = [
     notes: "One of Nigeria's top technology-focused federal universities. Excellent Engineering, Computer Science, and Agriculture programs.",
     logo: "", images: [], image: "",
     virtualTour: "https://www.futa.edu.ng" },
+  // Asia
+  { id: "utokyo", name: "University of Tokyo", country: "Japan", region: "Asia", acceptanceRate: "~35% (int'l)", competitiveness: "Very High",
+    requirements: ["Strong academic transcript", "EJU or SAT/IB/A-Level scores depending on program", "English or Japanese proficiency depending on track", "Personal statement"],
+    notes: "Japan's top-ranked university. Strong Engineering, Medicine, and Economics. English-taught programs (PEAK) available for international undergraduates.",
+    logo: "", images: [], image: "",
+    virtualTour: "https://www.u-tokyo.ac.jp/en/" },
+  { id: "tsinghua", name: "Tsinghua University", country: "China", region: "Asia", acceptanceRate: "~30% (int'l)", competitiveness: "Very High",
+    requirements: ["Strong academic record", "HSK for Chinese-taught programs, TOEFL/IELTS for English-taught", "Personal statement + recommendation letters", "Interview for some programs"],
+    notes: "China's top-ranked university, especially strong in Engineering, Computer Science, and Economics. International admission is holistic, separate from the Gaokao used for domestic students.",
+    logo: "", images: [], image: "",
+    virtualTour: "https://www.tsinghua.edu.cn/en/" },
+  { id: "nus", name: "National University of Singapore (NUS)", country: "Singapore", region: "Asia", acceptanceRate: "Highly Selective", competitiveness: "Very High",
+    requirements: ["Strong WAEC/IGCSE/A-Level or equivalent results", "SAT/ACT often considered", "Personal statement", "Some programs require portfolio or interview"],
+    notes: "Asia's top-ranked university by several major rankings. Excellent Business, Engineering, and Computing. English-medium instruction throughout.",
+    logo: "", images: [], image: "",
+    virtualTour: "https://www.nus.edu.sg" },
+  { id: "aiims", name: "All India Institute of Medical Sciences (AIIMS Delhi)", country: "India", region: "Asia", acceptanceRate: "Extremely Selective", competitiveness: "Extreme",
+    requirements: ["NEET entrance exam (for Indian nationals)", "Separate international student quota/process for foreign nationals", "Strong Physics, Chemistry, Biology background"],
+    notes: "India's top medical institution, including renowned Neurosurgery and specialist programs. One of the most competitive medical admissions in the world.",
+    logo: "", images: [], image: "",
+    virtualTour: "https://www.aiims.edu" },
+  { id: "iitdelhi", name: "Indian Institute of Technology Delhi (IIT Delhi)", country: "India", region: "Asia", acceptanceRate: "Extremely Selective", competitiveness: "Extreme",
+    requirements: ["JEE Advanced (for Indian nationals) or DASA scheme for international/NRI students", "Strong Maths and Physics background", "English proficiency for international applicants"],
+    notes: "One of India's top engineering institutes. International students typically apply through the DASA scheme rather than JEE directly.",
+    logo: "", images: [], image: "",
+    virtualTour: "https://home.iitd.ac.in" },
+  { id: "snu", name: "Seoul National University (SNU)", country: "South Korea", region: "Asia", acceptanceRate: "Highly Selective", competitiveness: "Very High",
+    requirements: ["Strong academic transcript", "TOPIK for Korean-taught programs, TOEFL/IELTS for English-taught", "Personal statement", "Interview for some programs"],
+    notes: "South Korea's top-ranked university. Strong across Engineering, Business, and Natural Sciences, with a growing number of English-taught programs for international students.",
+    logo: "", images: [], image: "",
+    virtualTour: "https://www.snu.ac.kr/en" },
 ];
 
 const COLLEGE_REGIONS = ["All", ...new Set(COLLEGES.map(c => c.region))];
@@ -605,6 +636,8 @@ const Icon = ({ name, size = 20, color = "currentColor" }) => {
     chevron_left: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
     chevron_right: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
     globe: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+    menu: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+    search: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
   };
   return icons[name] || null;
 };
@@ -760,6 +793,8 @@ function getMonthLabels(cells, weeksBack) {
 
 // ── HOME SCREEN ───────────────────────────────────────────────────────────────
 function HomeScreen({ onStart, bookmarks, stats, profile }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [modalContent, setModalContent] = useState(null); // "news" | "faq" | null
   const totalQ = stats.total;
   const correctQ = stats.correct;
   const pct = totalQ ? Math.round((correctQ / totalQ) * 100) : 0;
@@ -771,8 +806,62 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
       <div style={S.header}>
         <div style={S.headerRow}>
           <div style={S.logo}>Ace<span style={S.logoAccent}>Board</span></div>
-          <div style={S.badge}>{badgeText}</div>
+          <div style={S.row(8)}>
+            <div style={S.badge}>{badgeText}</div>
+            <button onClick={() => setMenuOpen(m => !m)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, position: "relative" }}>
+              <Icon name="menu" size={20} color="#94A3B8" />
+            </button>
+          </div>
         </div>
+
+        {menuOpen && (
+          <div style={{ position: "absolute", top: 90, right: 20, backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 14, overflow: "hidden", zIndex: 200, minWidth: 200, boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
+            {[
+              { label: "News & Updates", action: () => { setModalContent("news"); setMenuOpen(false); } },
+              { label: "FAQ", action: () => { setModalContent("faq"); setMenuOpen(false); } },
+              { label: "Contact Us", action: () => { window.open("https://instagram.com/aceboardhq", "_blank"); setMenuOpen(false); } },
+              { label: "Support Us", action: () => { setModalContent("support"); setMenuOpen(false); } },
+            ].map(item => (
+              <button key={item.label} onClick={item.action} style={{ display: "block", width: "100%", textAlign: "left", padding: "13px 16px", background: "none", border: "none", borderBottom: "1px solid #1E2A4A", color: "#F0F2FF", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {modalContent && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setModalContent(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: "#0D1326", borderRadius: "20px 20px 0 0", padding: 24, width: "100%", maxWidth: 480, maxHeight: "70vh", overflowY: "auto" }}>
+              {modalContent === "news" && (<>
+                <h2 style={{ ...S.h2, marginBottom: 16 }}>News & Updates</h2>
+                <div style={S.gap(14)}>
+                  <div style={S.card}>
+                    <p style={{ fontSize: 13, color: "#3B82F6", fontWeight: 700, marginBottom: 4 }}>Welcome to AceBoard</p>
+                    <p style={{ ...S.body, fontSize: 13 }}>Thanks for being here early. New questions, colleges, and features are added regularly — check back here for updates.</p>
+                  </div>
+                </div>
+              </>)}
+              {modalContent === "faq" && (<>
+                <h2 style={{ ...S.h2, marginBottom: 16 }}>FAQ</h2>
+                <div style={S.gap(14)}>
+                  <div>
+                    <p style={{ fontSize: 13, color: "#3B82F6", fontWeight: 700, marginBottom: 4 }}>Are the questions real past questions?</p>
+                    <p style={{ ...S.body, fontSize: 13 }}>Yes, where marked as sourced. We're continuously adding more verified past questions across all exam boards.</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13, color: "#3B82F6", fontWeight: 700, marginBottom: 4 }}>Is AceBoard free?</p>
+                    <p style={{ ...S.body, fontSize: 13 }}>Yes, AceBoard is free to use.</p>
+                  </div>
+                </div>
+              </>)}
+              {modalContent === "support" && (<>
+                <h2 style={{ ...S.h2, marginBottom: 16 }}>Support AceBoard</h2>
+                <p style={{ ...S.body, fontSize: 13 }}>AceBoard is built by a student, for students. If you'd like to support the project, sharing it with a friend who's preparing for WAEC, JAMB, or any exam helps a lot. Thank you!</p>
+              </>)}
+              <button onClick={() => setModalContent(null)} style={{ ...S.btnPrimary, marginTop: 20 }}>Close</button>
+            </div>
+          </div>
+        )}
         <div style={{ marginTop: 20 }}>
           <p style={{ ...S.small, marginBottom: 4 }}>Good day, {profile?.name || "student"} 👋</p>
           <h1 style={S.h1}>Ready to lock<br />in today?</h1>
@@ -1731,8 +1820,12 @@ function CollegeLogo({ college, size = 56, imgSize = 44 }) {
 function CollegesScreen() {
   const [region, setRegion] = useState("All");
   const [selected, setSelected] = useState(null);
+  const [search, setSearch] = useState("");
 
-  const filtered = region === "All" ? COLLEGES : COLLEGES.filter(c => c.region === region);
+  const filtered = COLLEGES.filter(c =>
+    (region === "All" || c.region === region) &&
+    (search.trim() === "" || c.name.toLowerCase().includes(search.trim().toLowerCase()) || c.country.toLowerCase().includes(search.trim().toLowerCase()))
+  );
 
   if (selected) return <CollegeDetail college={selected} onBack={() => setSelected(null)} />;
 
@@ -1745,6 +1838,18 @@ function CollegesScreen() {
 
       <div style={{ ...S.px, ...S.gap(14) }}>
         <CollegeSlideshow colleges={COLLEGES.slice(0, 5)} onSelect={setSelected} />
+
+        <div style={{ position: "relative" }}>
+          <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>
+            <Icon name="search" size={16} color="#64748B" />
+          </div>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search for a school..."
+            style={{ width: "100%", padding: "12px 14px 12px 40px", backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 12, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+          />
+        </div>
 
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
           {COLLEGE_REGIONS.map(r => (
