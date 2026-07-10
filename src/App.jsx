@@ -1243,7 +1243,8 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const finish = (finalAnswers) => {
     clearInterval(timerRef.current);
     const ans = finalAnswers || [...answers, { qid: q.id, selected, correct: selected === q.answer }];
-    onFinish(ans, pool);
+    const timeInfo = (config.mode === "exam" || config.mode === "mock") ? { timeLeft, totalSeconds } : null;
+    onFinish(ans, pool, timeInfo);
   };
 
   const optionStyle = (i) => {
@@ -1340,7 +1341,7 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
 }
 
 // ── RESULTS SCREEN ────────────────────────────────────────────────────────────
-function ResultsScreen({ answers, questions, mode, onRetry, onHome, onReview }) {
+function ResultsScreen({ answers, questions, mode, timeInfo, onRetry, onHome, onReview }) {
   const correct = answers.filter(a => a.correct).length;
   const total = answers.length;
   const pct = Math.round((correct / total) * 100);
@@ -1358,10 +1359,15 @@ function ResultsScreen({ answers, questions, mode, onRetry, onHome, onReview }) 
   const bySubject = {};
   answers.forEach((a, i) => {
     const q = questions[i];
-    if (!bySubject[q.subject]) bySubject[q.subject] = { correct: 0, total: 0 };
+    if (!bySubject[q.subject]) bySubject[q.subject] = { correct: 0, total: 0, topics: {} };
     bySubject[q.subject].total++;
     if (a.correct) bySubject[q.subject].correct++;
+    if (!bySubject[q.subject].topics[q.topic]) bySubject[q.subject].topics[q.topic] = { correct: 0, total: 0 };
+    bySubject[q.subject].topics[q.topic].total++;
+    if (a.correct) bySubject[q.subject].topics[q.topic].correct++;
   });
+
+  const timeUsedPct = timeInfo ? Math.round(((timeInfo.totalSeconds - timeInfo.timeLeft) / timeInfo.totalSeconds) * 100) : null;
 
   return (
     <div style={S.screen}>
@@ -1374,21 +1380,45 @@ function ResultsScreen({ answers, questions, mode, onRetry, onHome, onReview }) 
       </div>
 
       <div style={{ ...S.px, ...S.gap(14) }}>
-        {/* By subject */}
+        {/* Time usage */}
+        {timeUsedPct !== null && (
+          <div style={S.card}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ ...S.label, margin: 0 }}>Time Used</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: timeUsedPct >= 90 ? "#EF4444" : timeUsedPct >= 70 ? "#F59E0B" : "#22C55E" }}>{timeUsedPct}%</span>
+            </div>
+            <div style={S.progressBar(timeUsedPct)}>
+              <div style={S.progressFill(timeUsedPct, timeUsedPct >= 90 ? "#EF4444" : timeUsedPct >= 70 ? "#F59E0B" : "#22C55E")} />
+            </div>
+          </div>
+        )}
+
+        {/* By subject + topic breakdown */}
         {Object.keys(bySubject).length > 0 && (
           <div style={S.card}>
-            <p style={{ ...S.label, marginBottom: 12 }}>Performance by Subject</p>
-            <div style={S.gap(12)}>
+            <p style={{ ...S.label, marginBottom: 12 }}>Performance by Subject & Topic</p>
+            <div style={S.gap(16)}>
               {Object.entries(bySubject).map(([subj, data]) => {
                 const p = Math.round((data.correct / data.total) * 100);
                 return (
                   <div key={subj}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{subj}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: p >= 70 ? "#22C55E" : p >= 50 ? "#F59E0B" : "#EF4444" }}>{p}%</span>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{subj}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: p >= 70 ? "#22C55E" : p >= 50 ? "#F59E0B" : "#EF4444" }}>{data.correct}/{data.total} ({p}%)</span>
                     </div>
                     <div style={S.progressBar(p)}>
                       <div style={S.progressFill(p, p >= 70 ? "#22C55E" : p >= 50 ? "#F59E0B" : "#EF4444")} />
+                    </div>
+                    <div style={{ marginTop: 10, paddingLeft: 12, borderLeft: "2px solid #1E2A4A", display: "flex", flexDirection: "column", gap: 8 }}>
+                      {Object.entries(data.topics).map(([topicName, tData]) => {
+                        const tp = Math.round((tData.correct / tData.total) * 100);
+                        return (
+                          <div key={topicName} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: "#94A3B8" }}>{topicName}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: tp >= 70 ? "#22C55E" : tp >= 50 ? "#F59E0B" : "#EF4444" }}>{tData.correct}/{tData.total}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -2565,6 +2595,7 @@ export default function AceBoard() {
   const [defaultExam, setDefaultExam] = useState(null);
   const [quizConfig, setQuizConfig] = useState(null);
   const [quizAnswers, setQuizAnswers] = useState(null);
+  const [quizTimeInfo, setQuizTimeInfo] = useState(null);
   const [quizPool, setQuizPool] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [stats, setStats] = useState({ total: 0, correct: 0 });
@@ -2647,9 +2678,10 @@ export default function AceBoard() {
     setScreen("quiz");
   };
 
-  const handleFinish = (answers, pool) => {
+  const handleFinish = (answers, pool, timeInfo) => {
     setQuizAnswers(answers);
     setQuizPool(pool);
+    setQuizTimeInfo(timeInfo || null);
     const correct = answers.filter(a => a.correct).length;
     setStats(prev => ({ total: prev.total + answers.length, correct: prev.correct + correct }));
     setScreen("results");
@@ -2700,7 +2732,7 @@ export default function AceBoard() {
 
   if (screen === "results") return (
     <div style={shellStyle}>
-      <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} />
+      <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} timeInfo={quizTimeInfo} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} />
     </div>
   );
 
