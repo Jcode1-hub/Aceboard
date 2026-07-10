@@ -804,9 +804,10 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
     setNewsLoading(true);
     const fetchNews = async () => {
       try {
-        const q = query(collection(db, "news"), orderBy("createdAt", "desc"), limit(20));
-        const snap = await getDocs(q);
-        setNewsItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const snap = await getDocs(collection(db, "news"));
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        items.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        setNewsItems(items.slice(0, 20));
       } catch (err) {
         console.error("Failed to load news:", err);
         setNewsItems([]);
