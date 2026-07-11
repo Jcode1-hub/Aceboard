@@ -827,7 +827,6 @@ function HomeScreen({ onStart, onSearch, bookmarks, stats, profile }) {
   const totalQ = stats.total;
 
   useEffect(() => {
-    if (modalContent !== "news") return;
     setNewsLoading(true);
     const fetchNews = async () => {
       try {
@@ -843,7 +842,7 @@ function HomeScreen({ onStart, onSearch, bookmarks, stats, profile }) {
       }
     };
     fetchNews();
-  }, [modalContent]);
+  }, []);
   const correctQ = stats.correct;
   const pct = totalQ ? Math.round((correctQ / totalQ) * 100) : 0;
   const myExams = profile?.exams?.length ? profile.exams : EXAMS;
@@ -893,6 +892,9 @@ function HomeScreen({ onStart, onSearch, bookmarks, stats, profile }) {
                   <div style={S.gap(14)}>
                     {newsItems.map(item => (
                       <div key={item.id} style={S.card}>
+                        {item.imageUrl && (
+                          <img src={item.imageUrl} alt="" style={{ width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: 10, marginBottom: 10 }} />
+                        )}
                         <p style={{ fontSize: 13, color: "#3B82F6", fontWeight: 700, marginBottom: 4 }}>{item.title}</p>
                         <p style={{ ...S.body, fontSize: 13 }}>{item.body}</p>
                       </div>
@@ -942,6 +944,19 @@ function HomeScreen({ onStart, onSearch, bookmarks, stats, profile }) {
             </div>
           ))}
         </div>
+
+        {/* Latest update teaser */}
+        {newsItems.length > 0 && (
+          <button onClick={() => setModalContent("news")} style={{ ...S.card, textAlign: "left", cursor: "pointer", border: "1px solid #1E2A4A", display: "flex", gap: 12, alignItems: "center", width: "100%" }}>
+            {newsItems[0].imageUrl && (
+              <img src={newsItems[0].imageUrl} alt="" style={{ width: 48, height: 48, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
+            )}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#3B82F6", letterSpacing: "0.05em", textTransform: "uppercase" }}>Latest Update</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{newsItems[0].title}</div>
+            </div>
+          </button>
+        )}
 
         {/* Streak */}
         <div style={S.card}>
