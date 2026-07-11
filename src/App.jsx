@@ -819,7 +819,7 @@ function ExamLogo({ exam, size = 40 }) {
 }
 
 // ── HOME SCREEN ───────────────────────────────────────────────────────────────
-function HomeScreen({ onStart, bookmarks, stats, profile }) {
+function HomeScreen({ onStart, onSearch, bookmarks, stats, profile }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modalContent, setModalContent] = useState(null); // "news" | "faq" | null
   const [newsItems, setNewsItems] = useState([]);
@@ -967,12 +967,20 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
         {/* Quick start */}
         <div>
           <p style={{ ...S.label, marginBottom: 12 }}>Quick Start</p>
-          <button style={S.btnPrimary} onClick={() => onStart()}>
-            <div style={S.row(8)}>
-              <Icon name="zap" size={18} color="#fff" />
-              <span>Practice Questions</span>
-            </div>
-          </button>
+          <div style={S.gap(10)}>
+            <button style={S.btnPrimary} onClick={() => onStart()}>
+              <div style={S.row(8)}>
+                <Icon name="zap" size={18} color="#fff" />
+                <span>Practice Questions</span>
+              </div>
+            </button>
+            <button style={S.btnSecondary} onClick={onSearch}>
+              <div style={S.row(8)}>
+                <Icon name="search" size={18} color="#3B82F6" />
+                <span>Search Questions</span>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Exam tiles */}
@@ -1236,6 +1244,8 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const [selected, setSelected] = useState(null);
   const [revealed, setRevealed] = useState(false);
   const [answers, setAnswers] = useState([]);
+  const [timeLog, setTimeLog] = useState([]);
+  const questionStartRef = useRef(Date.now());
   const [timeLeft, setTimeLeft] = useState(config.mode === "exam" || config.mode === "mock" ? (config.timerSeconds || config.count * 90) : null);
   const totalSeconds = config.timerSeconds || config.count * 90;
   const timerRef = useRef(null);
@@ -1326,18 +1336,28 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   };
 
   const next = () => {
+    const elapsed = Math.max(1, Math.round((Date.now() - questionStartRef.current) / 1000));
+    const logEntry = { qNum: idx + 1, subject: q.subject, seconds: elapsed };
+    const updatedLog = [...timeLog, logEntry];
+    setTimeLog(updatedLog);
+    questionStartRef.current = Date.now();
     const newAnswers = [...answers, { qid: q.id, selected, correct: selected === q.answer }];
-    if (idx + 1 >= pool.length) { finish(newAnswers); return; }
+    if (idx + 1 >= pool.length) { finish(newAnswers, updatedLog); return; }
     setAnswers(newAnswers);
     setIdx(idx + 1);
     setSelected(null);
     setRevealed(false);
   };
 
-  const finish = (finalAnswers) => {
+  const finish = (finalAnswers, finalTimeLog) => {
     clearInterval(timerRef.current);
     const ans = finalAnswers || [...answers, { qid: q.id, selected, correct: selected === q.answer }];
-    const timeInfo = (config.mode === "exam" || config.mode === "mock") ? { timeLeft, totalSeconds } : null;
+    const log = finalTimeLog || timeLog;
+    const timeInfo = {
+      timeLog: log,
+      timeLeft: (config.mode === "exam" || config.mode === "mock") ? timeLeft : null,
+      totalSeconds: (config.mode === "exam" || config.mode === "mock") ? totalSeconds : null,
+    };
     onFinish(ans, pool, timeInfo);
   };
 
@@ -1486,6 +1506,64 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   );
 }
 
+// ── STAT RING (static percentage donut) ──────────────────────────────────────
+function StatRing({ pct, label, color = "#3B82F6", size = 84 }) {
+  const stroke = 6;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const arcLength = circumference * Math.max(0, Math.min(1, pct / 100));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div style={{ position: "relative", width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke="#1E2A4A" strokeWidth={stroke} fill="none" />
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={stroke} fill="none"
+            strokeDasharray={`${arcLength} ${circumference}`} strokeLinecap="round" />
+        </svg>
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: 17, fontWeight: 800, color: "#F0F2FF" }}>{pct}%</span>
+        </div>
+      </div>
+      <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600 }}>{label}</span>
+    </div>
+  );
+}
+
+// ── TIME TREND CHART (per-question time, hand-rolled SVG) ────────────────────
+function TimeTrendChart({ timeLog }) {
+  if (!timeLog || timeLog.length === 0) return null;
+  const subjects = [...new Set(timeLog.map(t => t.subject))];
+  const palette = ["#3B82F6", "#F97316", "#22C55E", "#8B5CF6", "#EF4444", "#F59E0B"];
+  const maxSeconds = Math.max(...timeLog.map(t => t.seconds), 10);
+  const maxQ = Math.max(...timeLog.map(t => t.qNum), 1);
+  const w = 300, h = 140, padL = 30, padB = 20, padT = 10, padR = 10;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const xScale = (q) => padL + (plotW * (q - 1)) / Math.max(maxQ - 1, 1);
+  const yScale = (s) => padT + plotH - (plotH * s) / maxSeconds;
+
+  return (
+    <div>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ display: "block" }}>
+        <line x1={padL} y1={padT} x2={padL} y2={h - padB} stroke="#1E2A4A" />
+        <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} stroke="#1E2A4A" />
+        {subjects.map((subj, si) => {
+          const pts = timeLog.filter(t => t.subject === subj);
+          const path = pts.map((t, i) => `${i === 0 ? "M" : "L"} ${xScale(t.qNum)} ${yScale(t.seconds)}`).join(" ");
+          return <path key={subj} d={path} fill="none" stroke={palette[si % palette.length]} strokeWidth="1.5" />;
+        })}
+      </svg>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8, justifyContent: "center" }}>
+        {subjects.map((subj, si) => (
+          <div key={subj} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: palette[si % palette.length] }} />
+            <span style={{ fontSize: 11, color: "#94A3B8" }}>{subj}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── RESULTS SCREEN ────────────────────────────────────────────────────────────
 function ResultsScreen({ answers, questions, mode, timeInfo, onRetry, onHome, onReview }) {
   const correct = answers.filter(a => a.correct).length;
@@ -1513,7 +1591,10 @@ function ResultsScreen({ answers, questions, mode, timeInfo, onRetry, onHome, on
     if (a.correct) bySubject[q.subject].topics[q.topic].correct++;
   });
 
-  const timeUsedPct = timeInfo ? Math.round(((timeInfo.totalSeconds - timeInfo.timeLeft) / timeInfo.totalSeconds) * 100) : null;
+  const timeUsedPct = timeInfo && timeInfo.totalSeconds ? Math.round(((timeInfo.totalSeconds - timeInfo.timeLeft) / timeInfo.totalSeconds) * 100) : null;
+  const avgActual = timeInfo && timeInfo.timeLog && timeInfo.timeLog.length > 0 ? timeInfo.timeLog.reduce((a, b) => a + b.seconds, 0) / timeInfo.timeLog.length : null;
+  const idealPerQ = timeInfo && timeInfo.totalSeconds ? timeInfo.totalSeconds / total : 90;
+  const speedPct = avgActual ? Math.max(0, Math.min(100, Math.round((idealPerQ / avgActual) * 100))) : null;
 
   return (
     <div style={S.screen}>
@@ -1526,16 +1607,17 @@ function ResultsScreen({ answers, questions, mode, timeInfo, onRetry, onHome, on
       </div>
 
       <div style={{ ...S.px, ...S.gap(14) }}>
-        {/* Time usage */}
-        {timeUsedPct !== null && (
+        {/* Performance breakdown - rings + time trend */}
+        {timeInfo && timeInfo.timeLog && timeInfo.timeLog.length > 0 && (
           <div style={S.card}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ ...S.label, margin: 0 }}>Time Used</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: timeUsedPct >= 90 ? "#EF4444" : timeUsedPct >= 70 ? "#F59E0B" : "#22C55E" }}>{timeUsedPct}%</span>
+            <p style={{ ...S.label, marginBottom: 16 }}>Performance Breakdown</p>
+            <div style={{ display: "flex", justifyContent: "space-around", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+              <StatRing pct={pct} label="Score" color={pct >= 70 ? "#22C55E" : pct >= 50 ? "#F59E0B" : "#EF4444"} />
+              {timeUsedPct !== null && <StatRing pct={timeUsedPct} label="Time Used" color={timeUsedPct >= 90 ? "#EF4444" : "#3B82F6"} />}
+              {speedPct !== null && <StatRing pct={speedPct} label="Speed" color="#8B5CF6" />}
             </div>
-            <div style={S.progressBar(timeUsedPct)}>
-              <div style={S.progressFill(timeUsedPct, timeUsedPct >= 90 ? "#EF4444" : timeUsedPct >= 70 ? "#F59E0B" : "#22C55E")} />
-            </div>
+            <p style={{ ...S.label, marginBottom: 8 }}>Time Spent Trend</p>
+            <TimeTrendChart timeLog={timeInfo.timeLog} />
           </div>
         )}
 
@@ -1572,6 +1654,25 @@ function ResultsScreen({ answers, questions, mode, timeInfo, onRetry, onHome, on
             </div>
           </div>
         )}
+
+        {/* Result slip */}
+        <div style={S.card}>
+          <p style={{ ...S.label, marginBottom: 12 }}>Result Slip</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={S.small}>Subject(s)</span>
+              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600, textAlign: "right" }}>{[...new Set(questions.map(q => q.subject))].join(", ")}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={S.small}>Exam Body</span>
+              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600 }}>{questions[0]?.exam}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={S.small}>Date</span>
+              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600 }}>{new Date().toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
 
         {/* Weak area tip */}
         {pct < 70 && (
@@ -2084,6 +2185,126 @@ function CollegesScreen() {
     </div>
   );
 }
+// ── QUESTION SEARCH ───────────────────────────────────────────────────────────
+function QuestionSearchScreen({ onBack }) {
+  const [examFilter, setExamFilter] = useState("All");
+  const [subjectFilter, setSubjectFilter] = useState("All Subjects");
+  const [keyword, setKeyword] = useState("");
+  const [selected, setSelected] = useState(null);
+
+  const examOptions = ["All", ...new Set(QUESTIONS.map(q => q.exam))];
+  const subjectOptions = ["All Subjects", ...new Set(QUESTIONS.filter(q => examFilter === "All" || q.exam === examFilter).map(q => q.subject))];
+
+  const filtered = QUESTIONS.filter(q =>
+    (examFilter === "All" || q.exam === examFilter) &&
+    (subjectFilter === "All Subjects" || q.subject === subjectFilter) &&
+    (keyword.trim() === "" ||
+      q.question.toLowerCase().includes(keyword.trim().toLowerCase()) ||
+      q.topic.toLowerCase().includes(keyword.trim().toLowerCase()))
+  );
+
+  if (selected) {
+    const optLabel = ["A", "B", "C", "D"];
+    return (
+      <div style={S.screen}>
+        <div style={S.header}>
+          <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
+            <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back to results</span></div>
+          </button>
+          <span style={S.label}>{selected.exam} · {selected.subject}</span>
+        </div>
+        <div style={{ ...S.px, ...S.gap(14) }}>
+          <div style={S.row(6)}>
+            <span style={S.pill()}>{selected.topic}</span>
+            <span style={S.pill("#1A1A2E", "#8B5CF6")}>{selected.difficulty}</span>
+            <span style={S.pill("#111827", "#64748B")}>{selected.year}</span>
+          </div>
+          <div style={{ ...S.card, padding: "18px" }}>
+            <p style={{ fontSize: 15, lineHeight: 1.7, color: "#E2E8F0", margin: 0, fontWeight: 500 }}>{selected.question}</p>
+          </div>
+          <div style={S.gap(8)}>
+            {selected.options.map((opt, i) => (
+              <div key={i} style={{ padding: "14px 16px", borderRadius: 12, border: "1.5px solid", display: "flex", alignItems: "center", gap: 12,
+                backgroundColor: i === selected.answer ? "#052E16" : "#0D1326", borderColor: i === selected.answer ? "#22C55E" : "#1E2A4A", color: i === selected.answer ? "#86EFAC" : "#E2E8F0" }}>
+                <span style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: "#1E2A4A", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{optLabel[i]}</span>
+                <span>{opt}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ backgroundColor: "#051A0F", border: "1px solid #14532D", borderRadius: 14, padding: 16 }}>
+            <div style={{ ...S.row(8), marginBottom: 8 }}>
+              <Icon name="check" size={16} color="#22C55E" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#22C55E" }}>Explanation</span>
+            </div>
+            <p style={{ ...S.body, fontSize: 13, margin: "0 0 10px" }}>{selected.explanation}</p>
+            <p style={{ fontSize: 11, color: "#374151" }}>📚 {selected.source}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...S.screen, overflowY: "auto" }}>
+      <div style={S.header}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
+          <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
+        </button>
+        <span style={S.label}>Question Search</span>
+        <h1 style={{ ...S.h1, marginTop: 6, fontSize: 22 }}>Find any question</h1>
+      </div>
+
+      <div style={{ ...S.px, ...S.gap(14) }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <select value={examFilter} onChange={e => { setExamFilter(e.target.value); setSubjectFilter("All Subjects"); }}
+            style={{ flex: 1, backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 13 }}>
+            {examOptions.map(e => <option key={e} value={e}>{e}</option>)}
+          </select>
+          <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)}
+            style={{ flex: 1, backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 13 }}>
+            {subjectOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        <div style={{ position: "relative" }}>
+          <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>
+            <Icon name="search" size={16} color="#64748B" />
+          </div>
+          <input
+            value={keyword}
+            onChange={e => setKeyword(e.target.value)}
+            placeholder="Search by keyword or topic..."
+            style={{ width: "100%", padding: "12px 14px 12px 40px", backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 12, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+          />
+        </div>
+
+        <p style={{ ...S.small }}>{filtered.length} question{filtered.length !== 1 ? "s" : ""} found</p>
+
+        <div style={S.gap(10)}>
+          {filtered.map((q, i) => (
+            <button key={q.id} onClick={() => setSelected(q)} style={{ ...S.cardAlt, cursor: "pointer", textAlign: "left", padding: 14, border: "1px solid #1E2A4A" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B" }}>#{i + 1}</span>
+                <span style={S.pill(q.difficulty === "Easy" ? "#052E16" : q.difficulty === "Medium" ? "#1A2E1A" : "#2D1515", q.difficulty === "Easy" ? "#22C55E" : q.difficulty === "Medium" ? "#86EFAC" : "#EF4444")}>{q.difficulty}</span>
+              </div>
+              <p style={{ fontSize: 13, color: "#E2E8F0", margin: "0 0 8px", lineHeight: 1.5 }}>{q.question.slice(0, 90)}{q.question.length > 90 ? "..." : ""}</p>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={S.small}>{q.exam} / {q.subject}</span>
+                <span style={S.small}>{q.year}</span>
+              </div>
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: "40px 20px" }}>
+              <p style={{ ...S.body }}>No questions match your search yet.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── AI STUDY COACH ────────────────────────────────────────────────────────────
 // ── AI HUB ────────────────────────────────────────────────────────────────────
 function AIHub({ onBack }) {
@@ -2891,6 +3112,12 @@ export default function AceBoard() {
     </div>
   );
 
+  if (screen === "search") return (
+    <div style={shellStyle}>
+      <QuestionSearchScreen onBack={() => setScreen("home")} />
+    </div>
+  );
+
   const navItems = [
     { id: "home", label: "Home", icon: "home" },
     { id: "analytics", label: "Progress", icon: "chart" },
@@ -2902,7 +3129,7 @@ export default function AceBoard() {
 
   return (
     <div style={shellStyle}>
-      {tab === "home" && <HomeScreen onStart={handleStart} bookmarks={bookmarks} stats={stats} profile={profile} />}
+      {tab === "home" && <HomeScreen onStart={handleStart} onSearch={() => setScreen("search")} bookmarks={bookmarks} stats={stats} profile={profile} />}
       {tab === "analytics" && <AnalyticsScreen stats={stats} profile={profile} />}
       {tab === "coach" && <AIHub onBack={() => setTab("home")} />}
       {tab === "colleges" && <CollegesScreen />}
