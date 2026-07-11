@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import * as pdfjsLib from "pdfjs-dist/build/pdf";
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -638,6 +638,8 @@ const Icon = ({ name, size = 20, color = "currentColor" }) => {
     globe: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
     menu: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
     search: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+    speaker: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>,
+    alert: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
   };
   return icons[name] || null;
 };
@@ -1209,6 +1211,14 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const [timeLeft, setTimeLeft] = useState(config.mode === "exam" || config.mode === "mock" ? (config.timerSeconds || config.count * 90) : null);
   const totalSeconds = config.timerSeconds || config.count * 90;
   const timerRef = useRef(null);
+  const [speaking, setSpeaking] = useState(false);
+  const [aiTutorOpen, setAiTutorOpen] = useState(false);
+  const [aiTutorInput, setAiTutorInput] = useState("");
+  const [aiTutorReply, setAiTutorReply] = useState("");
+  const [aiTutorLoading, setAiTutorLoading] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportText, setReportText] = useState("");
+  const [reportSent, setReportSent] = useState(false);
 
   useEffect(() => {
     if ((config.mode === "exam" || config.mode === "mock") && timeLeft > 0) {
@@ -1224,6 +1234,62 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const isBookmarked = bookmarks.includes(q.id);
 
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+  const toggleSpeak = () => {
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const text = q.question + ". " + q.options.map((o, i) => `Option ${["A","B","C","D"][i]}: ${o}`).join(". ");
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 0.95;
+    utter.onend = () => setSpeaking(false);
+    window.speechSynthesis.speak(utter);
+    setSpeaking(true);
+  };
+
+  const askAiTutor = async () => {
+    if (!aiTutorInput.trim()) return;
+    setAiTutorLoading(true);
+    setAiTutorReply("");
+    try {
+      const resp = await fetch("https://us-central1-ace-board-41d96.cloudfunctions.net/aiStudyCoach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `A student is working on this ${q.exam} ${q.subject} question and needs help understanding it (not just the answer): "${q.question}" Options: ${q.options.join(", ")}. Correct answer: ${q.options[q.answer]}. Student's question: ${aiTutorInput}`
+        })
+      });
+      if (!resp.ok) throw new Error();
+      const data = await resp.json();
+      setAiTutorReply(data.text || "Sorry, I couldn't process that.");
+    } catch {
+      setAiTutorReply("The AI Tutor is being connected to a secure backend right now — full functionality is coming very soon!");
+    } finally {
+      setAiTutorLoading(false);
+    }
+  };
+
+  const submitReport = async () => {
+    if (!reportText.trim()) return;
+    try {
+      await addDoc(collection(db, "questionReports"), {
+        questionId: q.id,
+        exam: q.exam,
+        subject: q.subject,
+        topic: q.topic,
+        question: q.question,
+        reportText: reportText.trim(),
+        createdAt: serverTimestamp(),
+      });
+      setReportSent(true);
+      setReportText("");
+      setTimeout(() => { setReportOpen(false); setReportSent(false); }, 1500);
+    } catch (err) {
+      console.error("Failed to submit report:", err);
+    }
+  };
 
   const choose = (i) => {
     if (revealed) return;
@@ -1271,6 +1337,12 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
             {(config.mode === "exam" || config.mode === "mock") && (
               <TimerRing timeLeft={timeLeft} totalSeconds={totalSeconds} />
             )}
+            <button onClick={() => setAiTutorOpen(true)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+              <Icon name="sparkles" size={20} color="#8B5CF6" />
+            </button>
+            <button onClick={() => setReportOpen(true)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+              <Icon name="alert" size={20} color="#4A5568" />
+            </button>
             <button onClick={() => onToggleBookmark(q.id)} style={{ background: "none", border: "none", cursor: "pointer" }}>
               <Icon name="bookmark" size={20} color={isBookmarked ? "#3B82F6" : "#4A5568"} />
             </button>
@@ -1278,7 +1350,12 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
         </div>
         {/* Progress */}
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-          <span style={S.small}>{idx + 1} of {pool.length}</span>
+          <div style={S.row(6)}>
+            <span style={S.small}>{idx + 1} of {pool.length}</span>
+            <button onClick={toggleSpeak} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+              <Icon name="speaker" size={14} color={speaking ? "#3B82F6" : "#4A5568"} />
+            </button>
+          </div>
           <span style={S.small}>{q.exam} · {q.year}</span>
         </div>
         <div style={S.progressBar(progress)}>
@@ -1318,6 +1395,47 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
             </div>
             <p style={{ ...S.body, fontSize: 13, margin: "0 0 10px" }}>{q.explanation}</p>
             <p style={{ fontSize: 11, color: "#374151" }}>📚 {q.source}</p>
+          </div>
+        )}
+
+        {aiTutorOpen && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setAiTutorOpen(false)}>
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: "#0D1326", borderRadius: "20px 20px 0 0", padding: 20, width: "100%", maxWidth: 480, maxHeight: "75vh", overflowY: "auto" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>🤖 AI Tutor</span>
+                <button onClick={() => setAiTutorOpen(false)} style={{ background: "none", border: "none", color: "#64748B", cursor: "pointer" }}>Close</button>
+              </div>
+              <p style={{ ...S.small, marginBottom: 12 }}>Ask about this specific question — I know what it is and what the correct answer is.</p>
+              {aiTutorReply && (
+                <div style={{ ...S.card, marginBottom: 12, whiteSpace: "pre-wrap", fontSize: 13, color: "#E2E8F0" }}>{aiTutorReply}</div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <input value={aiTutorInput} onChange={e => setAiTutorInput(e.target.value)} placeholder="e.g. why is the answer B and not C?"
+                  style={{ flex: 1, backgroundColor: "#161D33", border: "1px solid #1E2A4A", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, outline: "none" }} />
+                <button onClick={askAiTutor} disabled={aiTutorLoading} style={{ backgroundColor: "#8B5CF6", border: "none", borderRadius: 10, padding: "10px 18px", color: "#fff", fontWeight: 700, cursor: "pointer", opacity: aiTutorLoading ? 0.6 : 1 }}>
+                  {aiTutorLoading ? "..." : "Ask"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {reportOpen && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setReportOpen(false)}>
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: "#0D1326", borderRadius: "20px 20px 0 0", padding: 20, width: "100%", maxWidth: 480 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>⚠️ Report an Error</span>
+                <button onClick={() => setReportOpen(false)} style={{ background: "none", border: "none", color: "#64748B", cursor: "pointer" }}>Close</button>
+              </div>
+              {reportSent ? (
+                <p style={{ fontSize: 14, color: "#22C55E", fontWeight: 600 }}>✓ Thanks — your report was submitted.</p>
+              ) : (<>
+                <p style={{ ...S.small, marginBottom: 12 }}>What's wrong with this question? (wrong answer, typo, unclear wording, etc.)</p>
+                <textarea value={reportText} onChange={e => setReportText(e.target.value)} rows={4}
+                  style={{ width: "100%", backgroundColor: "#161D33", border: "1px solid #1E2A4A", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, outline: "none", resize: "none", boxSizing: "border-box" }} />
+                <button onClick={submitReport} style={{ ...S.btnPrimary, marginTop: 12 }}>Submit Report</button>
+              </>)}
+            </div>
           </div>
         )}
 
