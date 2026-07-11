@@ -2227,6 +2227,28 @@ function CollegesScreen() {
           />
         </div>
 
+        {/* Nigerian Admissions Portals */}
+        <div style={S.card}>
+          <p style={{ ...S.label, marginBottom: 12 }}>🇳🇬 Nigerian Admissions Portals</p>
+          <div style={S.gap(8)}>
+            {[
+              { name: "JAMB CAPS / Admission Status", url: "https://efacility.jamb.gov.ng", note: "Check admission status, accept offers, print letter" },
+              { name: "WAEC Result Checker", url: "https://www.waecdirect.org", note: "Official WASSCE result checking portal" },
+              { name: "NECO Result Portal", url: "https://results.neco.gov.ng", note: "Official NECO SSCE result checking portal" },
+            ].map(p => (
+              <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer"
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", textDecoration: "none", padding: "12px 14px", backgroundColor: "#111827", borderRadius: 12, border: "1px solid #1E2A4A" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF" }}>{p.name}</div>
+                  <div style={{ ...S.small, marginTop: 2 }}>{p.note}</div>
+                </div>
+                <Icon name="external" size={16} color="#3B82F6" />
+              </a>
+            ))}
+          </div>
+          <p style={{ ...S.small, marginTop: 10 }}>These take you to the official government portals — AceBoard doesn't process admissions itself, just gets you there faster.</p>
+        </div>
+
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
           {COLLEGE_REGIONS.map(r => (
             <button key={r} style={{ ...S.btnSmall(region === r), flexShrink: 0 }} onClick={() => setRegion(r)}>{r}</button>
