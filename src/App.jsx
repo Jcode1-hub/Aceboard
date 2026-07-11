@@ -1551,22 +1551,44 @@ function TimeTrendChart({ timeLog }) {
   if (!timeLog || timeLog.length === 0) return null;
   const subjects = [...new Set(timeLog.map(t => t.subject))];
   const palette = ["#3B82F6", "#F97316", "#22C55E", "#8B5CF6", "#EF4444", "#F59E0B"];
-  const maxSeconds = Math.max(...timeLog.map(t => t.seconds), 10);
+  const rawMax = Math.max(...timeLog.map(t => t.seconds), 10);
+  const maxSeconds = Math.ceil(rawMax / 10) * 10;
   const maxQ = Math.max(...timeLog.map(t => t.qNum), 1);
-  const w = 300, h = 140, padL = 30, padB = 20, padT = 10, padR = 10;
+  const w = 320, h = 190, padL = 38, padB = 28, padT = 10, padR = 12;
   const plotW = w - padL - padR, plotH = h - padT - padB;
   const xScale = (q) => padL + (plotW * (q - 1)) / Math.max(maxQ - 1, 1);
   const yScale = (s) => padT + plotH - (plotH * s) / maxSeconds;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(maxSeconds * f));
+  const xTickCount = Math.min(6, maxQ);
+  const xTicks = Array.from({ length: xTickCount }, (_, i) => Math.round(1 + (i * (maxQ - 1)) / Math.max(xTickCount - 1, 1)));
 
   return (
     <div>
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ display: "block" }}>
-        <line x1={padL} y1={padT} x2={padL} y2={h - padB} stroke="#1E2A4A" />
-        <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} stroke="#1E2A4A" />
+        {yTicks.map(t => (
+          <g key={t}>
+            <line x1={padL} y1={yScale(t)} x2={w - padR} y2={yScale(t)} stroke="#1E2A4A" strokeWidth="1" />
+            <text x={padL - 6} y={yScale(t) + 3} textAnchor="end" fontSize="8" fill="#64748B">{t}</text>
+          </g>
+        ))}
+        {xTicks.map(q => (
+          <text key={q} x={xScale(q)} y={h - padB + 14} textAnchor="middle" fontSize="8" fill="#64748B">{q}</text>
+        ))}
+        <line x1={padL} y1={padT} x2={padL} y2={h - padB} stroke="#334155" strokeWidth="1.5" />
+        <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} stroke="#334155" strokeWidth="1.5" />
+        <text x={-(h / 2)} y={12} textAnchor="middle" fontSize="8" fill="#94A3B8" transform="rotate(-90)">Time Spent (sec)</text>
+        <text x={padL + plotW / 2} y={h - 2} textAnchor="middle" fontSize="8" fill="#94A3B8">Question Number</text>
         {subjects.map((subj, si) => {
           const pts = timeLog.filter(t => t.subject === subj);
           const path = pts.map((t, i) => `${i === 0 ? "M" : "L"} ${xScale(t.qNum)} ${yScale(t.seconds)}`).join(" ");
-          return <path key={subj} d={path} fill="none" stroke={palette[si % palette.length]} strokeWidth="1.5" />;
+          return (
+            <g key={subj}>
+              <path d={path} fill="none" stroke={palette[si % palette.length]} strokeWidth="1.5" />
+              {pts.map((t, i) => (
+                <circle key={i} cx={xScale(t.qNum)} cy={yScale(t.seconds)} r="2" fill={palette[si % palette.length]} />
+              ))}
+            </g>
+          );
         })}
       </svg>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8, justifyContent: "center" }}>
@@ -1582,7 +1604,7 @@ function TimeTrendChart({ timeLog }) {
 }
 
 // ── RESULTS SCREEN ────────────────────────────────────────────────────────────
-function ResultsScreen({ answers, questions, mode, timeInfo, onRetry, onHome, onReview }) {
+function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, onHome, onReview }) {
   const correct = answers.filter(a => a.correct).length;
   const total = answers.length;
   const pct = Math.round((correct / total) * 100);
@@ -1676,6 +1698,10 @@ function ResultsScreen({ answers, questions, mode, timeInfo, onRetry, onHome, on
         <div style={S.card}>
           <p style={{ ...S.label, marginBottom: 12 }}>Result Slip</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={S.small}>Username</span>
+              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600 }}>{profile?.name || "Student"}</span>
+            </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={S.small}>Subject(s)</span>
               <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600, textAlign: "right" }}>{[...new Set(questions.map(q => q.subject))].join(", ")}</span>
@@ -3138,7 +3164,7 @@ export default function AceBoard() {
 
   if (screen === "results") return (
     <div style={shellStyle}>
-      <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} timeInfo={quizTimeInfo} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} />
+      <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} timeInfo={quizTimeInfo} profile={profile} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} />
     </div>
   );
 
