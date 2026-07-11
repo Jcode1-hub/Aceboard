@@ -1267,8 +1267,6 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const [answers, setAnswers] = useState([]);
   const [timeLog, setTimeLog] = useState([]);
   const questionStartRef = useRef(Date.now());
-  const [timeLog, setTimeLog] = useState([]);
-  const questionStartRef = useRef(Date.now());
   const [timeLeft, setTimeLeft] = useState(config.mode === "exam" || config.mode === "mock" ? (config.timerSeconds || config.count * 90) : null);
   const totalSeconds = config.timerSeconds || config.count * 90;
   const timerRef = useRef(null);
