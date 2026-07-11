@@ -1524,13 +1524,14 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
 }
 
 // ── STAT RING (static percentage donut) ──────────────────────────────────────
-function StatRing({ pct, label, color = "#3B82F6", size = 84 }) {
+function StatRing({ pct, label, raw, color = "#3B82F6", size = 84 }) {
   const stroke = 6;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const arcLength = circumference * Math.max(0, Math.min(1, pct / 100));
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      {raw && <span style={{ fontSize: 12, color: "#F0F2FF", fontWeight: 700 }}>{raw}</span>}
       <div style={{ position: "relative", width: size, height: size }}>
         <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
           <circle cx={size / 2} cy={size / 2} r={radius} stroke="#1E2A4A" strokeWidth={stroke} fill="none" />
@@ -1651,9 +1652,9 @@ function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, o
           <div style={S.card}>
             <p style={{ ...S.label, marginBottom: 16 }}>Performance Breakdown</p>
             <div style={{ display: "flex", justifyContent: "space-around", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-              <StatRing pct={pct} label="Score" color={pct >= 70 ? "#22C55E" : pct >= 50 ? "#F59E0B" : "#EF4444"} />
-              {timeUsedPct !== null && <StatRing pct={timeUsedPct} label="Time Used" color={timeUsedPct >= 90 ? "#EF4444" : "#3B82F6"} />}
-              {speedPct !== null && <StatRing pct={speedPct} label="Speed" color="#8B5CF6" />}
+              <StatRing pct={pct} raw={`${correct}/${total}`} label="Score" color={pct >= 70 ? "#22C55E" : pct >= 50 ? "#F59E0B" : "#EF4444"} />
+              {timeUsedPct !== null && <StatRing pct={timeUsedPct} raw={`${String(Math.floor((timeInfo.totalSeconds - timeInfo.timeLeft) / 60)).padStart(2, "0")}:${String(Math.floor((timeInfo.totalSeconds - timeInfo.timeLeft) % 60)).padStart(2, "0")}`} label="Time Used" color={timeUsedPct >= 90 ? "#EF4444" : "#3B82F6"} />}
+              {speedPct !== null && <StatRing pct={speedPct} raw={avgActual.toFixed(2) + "s/q"} label="Speed" color="#8B5CF6" />}
             </div>
             <p style={{ ...S.label, marginBottom: 8 }}>Time Spent Trend</p>
             <TimeTrendChart timeLog={timeInfo.timeLog} />
@@ -1696,7 +1697,7 @@ function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, o
 
         {/* Result slip */}
         <div style={S.card}>
-          <p style={{ ...S.label, marginBottom: 12 }}>Result Slip</p>
+          <p style={{ ...S.label, marginBottom: 12 }}>{questions[0]?.exam} Result Slip</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={S.small}>Username</span>
