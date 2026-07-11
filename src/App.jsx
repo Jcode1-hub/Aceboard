@@ -819,7 +819,7 @@ function ExamLogo({ exam, size = 40 }) {
 }
 
 // ── HOME SCREEN ───────────────────────────────────────────────────────────────
-function HomeScreen({ onStart, onSearch, bookmarks, stats, profile }) {
+function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modalContent, setModalContent] = useState(null); // "news" | "faq" | null
   const [newsItems, setNewsItems] = useState([]);
@@ -995,6 +995,12 @@ function HomeScreen({ onStart, onSearch, bookmarks, stats, profile }) {
                 <span>Search Questions</span>
               </div>
             </button>
+            <button style={S.btnSecondary} onClick={onNotes}>
+              <div style={S.row(8)}>
+                <Icon name="book" size={18} color="#3B82F6" />
+                <span>Notes & Books</span>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -1034,11 +1040,11 @@ function HomeScreen({ onStart, onSearch, bookmarks, stats, profile }) {
 // ── QUIZ CONFIG SCREEN ─────────────────────────────────────────────────────────
 const MOCK_ELIGIBLE = ["WAEC", "JAMB", "NECO"];
 
-function PracticeSetup({ profile, defaultExam, onBegin, onBack }) {
+function PracticeSetup({ profile, defaultExam, defaultSubject, defaultTopic, onBegin, onBack }) {
   const myExams = profile?.exams?.length ? profile.exams : EXAMS;
   const [exam, setExam] = useState(defaultExam || myExams[0] || "WAEC");
-  const [subjects, setSubjects] = useState([]); // empty = all subjects
-  const [topic, setTopic] = useState("All Topics");
+  const [subjects, setSubjects] = useState(defaultSubject ? [defaultSubject] : []);
+  const [topic, setTopic] = useState(defaultTopic || "All Topics");
   const [year, setYear] = useState("All Years");
   const [count, setCount] = useState(10);
   const [hours, setHours] = useState(0);
@@ -2368,6 +2374,187 @@ function QuestionSearchScreen({ onBack }) {
   );
 }
 
+// ── NOTES DATA ────────────────────────────────────────────────────────────────
+// Seed set — proof of the full flow (notes + video + test + flashcards).
+// Scaling this to cover every topic across every exam board is an ongoing content project,
+// same as the question bank — not something to fake with placeholder text.
+const NOTES = [
+  {
+    id: "n1", exam: "IGCSE", subject: "Mathematics", topic: "Probability",
+    content: "Probability measures how likely an event is to happen, on a scale from 0 (impossible) to 1 (certain).\n\nP(event) = number of favourable outcomes ÷ total number of possible outcomes.\n\nFor independent events (one doesn't affect the other), multiply their probabilities: P(A and B) = P(A) × P(B).\n\nFor combined events, probability tree diagrams help organise outcomes across multiple stages — multiply along branches, add between separate branches leading to the same result.\n\nMutually exclusive events (can't both happen at once) follow: P(A or B) = P(A) + P(B).\n\nAlways check your probabilities for a full sample space sum to 1.",
+    videoTitle: "All of Probability in 30 Minutes — GCSE Maths Tutor",
+    videoUrl: "https://www.youtube.com/watch?v=h78FV6dRETI",
+    flashcards: [
+      { q: "What is the probability scale range?", a: "0 (impossible) to 1 (certain)" },
+      { q: "How do you find P(A and B) for independent events?", a: "Multiply: P(A) × P(B)" },
+      { q: "What's the rule for mutually exclusive events?", a: "P(A or B) = P(A) + P(B)" },
+      { q: "On a probability tree, what do you do along a branch vs between branches?", a: "Multiply along a branch, add between separate branches" },
+    ],
+  },
+  {
+    id: "n2", exam: "IGCSE", subject: "Chemistry", topic: "Acids & Bases",
+    content: "Acids release H+ ions in aqueous solution; bases (or alkalis, when soluble) release OH- ions.\n\npH scale runs 0–14: below 7 is acidic, 7 is neutral, above 7 is alkaline/basic.\n\nNeutralisation: acid + base → salt + water. This is why antacids (bases) treat excess stomach acid.\n\nStrong acids/bases fully ionise in water (e.g. HCl); weak acids/bases only partially ionise (e.g. ethanoic acid) — strength is about ionisation, not concentration.\n\nIndicators like litmus (red in acid, blue in alkali) or universal indicator (full colour range matching pH) are used to test pH practically.",
+    videoTitle: "Acids and Bases - Basic Introduction — The Organic Chemistry Tutor",
+    videoUrl: "https://www.youtube.com/watch?v=owVZiKnnPME",
+    flashcards: [
+      { q: "What ion do acids release in water?", a: "H+ (hydrogen ions)" },
+      { q: "What pH value is neutral?", a: "7" },
+      { q: "What's the general equation for neutralisation?", a: "Acid + Base → Salt + Water" },
+      { q: "What's the difference between a strong and weak acid?", a: "Strong acids fully ionise in water; weak acids only partially ionise" },
+    ],
+  },
+  {
+    id: "n3", exam: "WAEC", subject: "Biology", topic: "Cell Biology",
+    content: "The cell is the basic structural and functional unit of all living organisms.\n\nAnimal cells contain: nucleus (controls activities, holds DNA), cytoplasm (site of reactions), cell membrane (controls what enters/exits), mitochondria (respiration/ATP production), ribosomes (protein synthesis).\n\nPlant cells have all of the above, plus: cell wall (made of cellulose, gives structural support), chloroplasts (site of photosynthesis, contain chlorophyll), and a large permanent vacuole (maintains turgor pressure, stores cell sap).\n\nProkaryotic cells (bacteria) lack a nucleus and membrane-bound organelles — their DNA floats freely in the cytoplasm.\n\nUnderstanding these differences is a common WAEC exam focus: comparing plant vs animal cells, and identifying organelles from labelled diagrams.",
+    videoTitle: "GCSE Biology - Cell Types and Cell Structure — Cognito",
+    videoUrl: "https://www.youtube.com/watch?v=qHkUOlC8Nbo",
+    flashcards: [
+      { q: "What are three structures found in plant cells but NOT animal cells?", a: "Cell wall, chloroplasts, and a large permanent vacuole" },
+      { q: "What is the function of the mitochondria?", a: "Site of respiration — produces ATP (energy) for the cell" },
+      { q: "What is the function of ribosomes?", a: "Protein synthesis" },
+      { q: "What's the key difference between prokaryotic and eukaryotic cells?", a: "Prokaryotic cells (like bacteria) lack a nucleus and membrane-bound organelles" },
+    ],
+  },
+];
+
+const BOOKS = [
+  { exam: "WAEC", title: "WAEC Syllabus (Official)", note: "Free official syllabus per subject — the authoritative source for exactly what's examinable.", url: "https://www.waecnigeria.org" },
+  { exam: "JAMB", title: "JAMB UTME Syllabus (Official)", note: "Official JAMB brochure and subject syllabus, updated yearly.", url: "https://www.jamb.gov.ng" },
+  { exam: "NECO", title: "NECO Syllabus (Official)", note: "Official NECO subject syllabus documents.", url: "https://www.neco.gov.ng" },
+  { exam: "IGCSE", title: "Cambridge IGCSE Syllabus (Official)", note: "Free official syllabus documents for every Cambridge IGCSE subject.", url: "https://www.cambridgeinternational.org" },
+];
+
+// ── FLASHCARD VIEWER (for Notes topics) ──────────────────────────────────────
+function NoteFlashcards({ cards, onBack }) {
+  const [idx, setIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  return (
+    <div style={S.screen}>
+      <div style={S.header}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
+          <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
+        </button>
+        <span style={S.label}>Flashcards</span>
+      </div>
+      <div style={{ ...S.px, ...S.gap(16) }}>
+        <div style={{ textAlign: "center", fontSize: 13, color: "#94A3B8" }}>Card {idx + 1} of {cards.length} — tap to flip</div>
+        <button onClick={() => setFlipped(f => !f)}
+          style={{ backgroundColor: flipped ? "#0D1E3D" : "#161D33", border: `1.5px solid ${flipped ? "#3B82F6" : "#1E2A4A"}`, borderRadius: 18, padding: "32px 20px", cursor: "pointer", minHeight: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: flipped ? "#3B82F6" : "#94A3B8" }}>{flipped ? "ANSWER" : "QUESTION"}</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#F0F2FF", lineHeight: 1.6, textAlign: "center" }}>{flipped ? cards[idx].a : cards[idx].q}</div>
+        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => { setIdx(i => Math.max(i - 1, 0)); setFlipped(false); }} disabled={idx === 0}
+            style={{ flex: 1, backgroundColor: "transparent", border: "1.5px solid #1E2A4A", borderRadius: 12, padding: "12px", color: "#94A3B8", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: idx === 0 ? 0.3 : 1 }}>← Prev</button>
+          <button onClick={() => { setIdx(i => Math.min(i + 1, cards.length - 1)); setFlipped(false); }} disabled={idx === cards.length - 1}
+            style={{ flex: 1, backgroundColor: "#3B82F6", border: "none", borderRadius: 12, padding: "12px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: idx === cards.length - 1 ? 0.3 : 1 }}>Next →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── NOTES SCREEN ──────────────────────────────────────────────────────────────
+function NotesScreen({ onBack, onTestTopic }) {
+  const [exam, setExam] = useState(null);
+  const [subject, setSubject] = useState(null);
+  const [topicNote, setTopicNote] = useState(null);
+  const [showFlashcards, setShowFlashcards] = useState(false);
+
+  const examOptions = [...new Set(NOTES.map(n => n.exam))];
+  const subjectOptions = exam ? [...new Set(NOTES.filter(n => n.exam === exam).map(n => n.subject))] : [];
+  const topicOptions = exam && subject ? NOTES.filter(n => n.exam === exam && n.subject === subject) : [];
+
+  if (showFlashcards && topicNote) {
+    return <NoteFlashcards cards={topicNote.flashcards} onBack={() => setShowFlashcards(false)} />;
+  }
+
+  if (topicNote) {
+    const videoId = topicNote.videoUrl.split("v=")[1];
+    return (
+      <div style={{ ...S.screen, overflowY: "auto" }}>
+        <div style={S.header}>
+          <button onClick={() => setTopicNote(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
+            <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
+          </button>
+          <span style={S.label}>{topicNote.exam} · {topicNote.subject}</span>
+          <h1 style={{ ...S.h1, marginTop: 6, fontSize: 22 }}>{topicNote.topic}</h1>
+        </div>
+        <div style={{ ...S.px, ...S.gap(16) }}>
+          <div style={{ ...S.card, whiteSpace: "pre-line", fontSize: 14, lineHeight: 1.7, color: "#E2E8F0" }}>{topicNote.content}</div>
+
+          <div>
+            <p style={{ ...S.label, marginBottom: 10 }}>Watch: {topicNote.videoTitle}</p>
+            <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: 14, overflow: "hidden" }}>
+              <iframe
+                src={`https://www.youtube.com/embed/${videoId}`}
+                title={topicNote.videoTitle}
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+                allowFullScreen
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setShowFlashcards(true)} style={{ ...S.btnSecondary, flex: 1 }}>🃏 Flashcards</button>
+            <button onClick={() => onTestTopic(topicNote.exam, topicNote.subject, topicNote.topic)} style={{ ...S.btnPrimary, flex: 1 }}>✅ Test Yourself</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...S.screen, overflowY: "auto" }}>
+      <div style={S.header}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
+          <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
+        </button>
+        <span style={S.label}>Notes & Books</span>
+        <h1 style={{ ...S.h1, marginTop: 6, fontSize: 22 }}>{!exam ? "Choose an exam" : !subject ? "Choose a subject" : "Choose a topic"}</h1>
+      </div>
+
+      <div style={{ ...S.px, ...S.gap(14) }}>
+        {!exam && (<>
+          {examOptions.map(e => (
+            <button key={e} onClick={() => setExam(e)} style={{ ...S.cardAlt, cursor: "pointer", textAlign: "left", padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
+              <ExamLogo exam={e} size={36} />
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>{e}</span>
+            </button>
+          ))}
+          <div style={{ height: 8 }} />
+          <p style={{ ...S.label, marginBottom: 4 }}>📚 Recommended Reading</p>
+          {BOOKS.map(b => (
+            <a key={b.title} href={b.url} target="_blank" rel="noopener noreferrer" style={{ ...S.cardAlt, textDecoration: "none", display: "block", padding: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF" }}>{b.title}</div>
+              <div style={{ ...S.small, marginTop: 4 }}>{b.note}</div>
+            </a>
+          ))}
+        </>)}
+
+        {exam && !subject && (<>
+          <button onClick={() => setExam(null)} style={{ ...S.btnSecondary, marginBottom: 8 }}>← All Exams</button>
+          {subjectOptions.map(s => (
+            <button key={s} onClick={() => setSubject(s)} style={{ ...S.cardAlt, cursor: "pointer", textAlign: "left", padding: 16 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>{s}</span>
+            </button>
+          ))}
+          {subjectOptions.length === 0 && <p style={{ ...S.body }}>No notes yet for {exam} — check back soon.</p>}
+        </>)}
+
+        {exam && subject && (<>
+          <button onClick={() => setSubject(null)} style={{ ...S.btnSecondary, marginBottom: 8 }}>← All Subjects</button>
+          {topicOptions.map(t => (
+            <button key={t.id} onClick={() => setTopicNote(t)} style={{ ...S.cardAlt, cursor: "pointer", textAlign: "left", padding: 16 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>{t.topic}</span>
+            </button>
+          ))}
+        </>)}
+      </div>
+    </div>
+  );
+}
+
 // ── AI STUDY COACH ────────────────────────────────────────────────────────────
 // ── AI HUB ────────────────────────────────────────────────────────────────────
 function AIHub({ onBack }) {
@@ -3026,6 +3213,8 @@ export default function AceBoard() {
   const [screen, setScreen] = useState("home"); // home | config | quiz | results
   const [quizMode, setQuizMode] = useState(null);
   const [defaultExam, setDefaultExam] = useState(null);
+  const [defaultSubject, setDefaultSubject] = useState(null);
+  const [defaultTopic, setDefaultTopic] = useState(null);
   const [quizConfig, setQuizConfig] = useState(null);
   const [quizAnswers, setQuizAnswers] = useState(null);
   const [quizTimeInfo, setQuizTimeInfo] = useState(null);
@@ -3103,6 +3292,15 @@ export default function AceBoard() {
 
   const handleStart = (exam = null) => {
     setDefaultExam(exam || profile?.exams?.[0] || null);
+    setDefaultSubject(null);
+    setDefaultTopic(null);
+    setScreen("config");
+  };
+
+  const handleTestTopic = (exam, subject, topic) => {
+    setDefaultExam(exam);
+    setDefaultSubject(subject);
+    setDefaultTopic(topic);
     setScreen("config");
   };
 
@@ -3153,7 +3351,7 @@ export default function AceBoard() {
   // If in quiz flow, render quiz screens ignoring tabs
   if (screen === "config") return (
     <div style={shellStyle}>
-      <PracticeSetup profile={profile} defaultExam={defaultExam} onBegin={handleBegin} onBack={() => setScreen("home")} />
+      <PracticeSetup profile={profile} defaultExam={defaultExam} defaultSubject={defaultSubject} defaultTopic={defaultTopic} onBegin={handleBegin} onBack={() => setScreen("home")} />
     </div>
   );
 
@@ -3181,6 +3379,12 @@ export default function AceBoard() {
     </div>
   );
 
+  if (screen === "notes") return (
+    <div style={shellStyle}>
+      <NotesScreen onBack={() => setScreen("home")} onTestTopic={handleTestTopic} />
+    </div>
+  );
+
   const navItems = [
     { id: "home", label: "Home", icon: "home" },
     { id: "analytics", label: "Progress", icon: "chart" },
@@ -3192,7 +3396,7 @@ export default function AceBoard() {
 
   return (
     <div style={shellStyle}>
-      {tab === "home" && <HomeScreen onStart={handleStart} onSearch={() => setScreen("search")} bookmarks={bookmarks} stats={stats} profile={profile} />}
+      {tab === "home" && <HomeScreen onStart={handleStart} onSearch={() => setScreen("search")} onNotes={() => setScreen("notes")} bookmarks={bookmarks} stats={stats} profile={profile} />}
       {tab === "analytics" && <AnalyticsScreen stats={stats} profile={profile} />}
       {tab === "coach" && <AIHub onBack={() => setTab("home")} />}
       {tab === "colleges" && <CollegesScreen />}
