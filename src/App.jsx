@@ -1246,6 +1246,8 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const [answers, setAnswers] = useState([]);
   const [timeLog, setTimeLog] = useState([]);
   const questionStartRef = useRef(Date.now());
+  const [timeLog, setTimeLog] = useState([]);
+  const questionStartRef = useRef(Date.now());
   const [timeLeft, setTimeLeft] = useState(config.mode === "exam" || config.mode === "mock" ? (config.timerSeconds || config.count * 90) : null);
   const totalSeconds = config.timerSeconds || config.count * 90;
   const timerRef = useRef(null);
@@ -1654,6 +1656,25 @@ function ResultsScreen({ answers, questions, mode, timeInfo, onRetry, onHome, on
             </div>
           </div>
         )}
+
+        {/* Result slip */}
+        <div style={S.card}>
+          <p style={{ ...S.label, marginBottom: 12 }}>Result Slip</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={S.small}>Subject(s)</span>
+              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600, textAlign: "right" }}>{[...new Set(questions.map(q => q.subject))].join(", ")}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={S.small}>Exam Body</span>
+              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600 }}>{questions[0]?.exam}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={S.small}>Date</span>
+              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600 }}>{new Date().toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
 
         {/* Result slip */}
         <div style={S.card}>
