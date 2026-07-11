@@ -793,6 +793,31 @@ function getMonthLabels(cells, weeksBack) {
   return labels;
 }
 
+// ── EXAM LOGOS ────────────────────────────────────────────────────────────────
+const EXAM_LOGOS = {
+  SAT: "https://upload.wikimedia.org/wikipedia/commons/5/5a/SAT_logo_%282017%29.svg",
+  ACT: "https://upload.wikimedia.org/wikipedia/commons/d/d9/ACT_logo.svg",
+  WAEC: "https://upload.wikimedia.org/wikipedia/en/d/d9/Waec_logo.png",
+  NECO: "https://upload.wikimedia.org/wikipedia/en/b/bd/Neco_official_banner.jpg",
+  JAMB: "https://upload.wikimedia.org/wikipedia/en/2/2e/Official_JAMB_logo.png",
+  IGCSE: "https://upload.wikimedia.org/wikipedia/commons/c/c3/IGCSE_cover.jpg",
+};
+
+function ExamLogo({ exam, size = 40 }) {
+  const [failed, setFailed] = useState(false);
+  const url = EXAM_LOGOS[exam];
+  const showImg = url && !failed;
+  return (
+    <div style={{ width: size, height: size, borderRadius: size > 32 ? 12 : 10, backgroundColor: "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+      {showImg ? (
+        <img src={url} alt={exam} onError={() => setFailed(true)} style={{ width: "100%", height: "100%", objectFit: "contain", padding: 3, boxSizing: "border-box" }} />
+      ) : (
+        <span style={{ fontSize: size > 32 ? 14 : 11, fontWeight: 900, color: "#0D1326" }}>{exam.slice(0, 2)}</span>
+      )}
+    </div>
+  );
+}
+
 // ── HOME SCREEN ───────────────────────────────────────────────────────────────
 function HomeScreen({ onStart, bookmarks, stats, profile }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -955,9 +980,12 @@ function HomeScreen({ onStart, bookmarks, stats, profile }) {
           <p style={{ ...S.label, marginBottom: 12 }}>{profile?.exams?.length ? "Your Exams" : "Select Exam"}</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
             {myExams.map(exam => (
-              <button key={exam} onClick={() => onStart(exam)} style={{ ...S.cardAlt, border: "1px solid #1E2A4A", cursor: "pointer", textAlign: "left", padding: "14px 14px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF", marginBottom: 2 }}>{exam}</div>
-                <div style={S.small}>{QUESTIONS.filter(q => q.exam === exam).length} questions</div>
+              <button key={exam} onClick={() => onStart(exam)} style={{ ...S.cardAlt, border: "1px solid #1E2A4A", cursor: "pointer", textAlign: "left", padding: "14px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                <ExamLogo exam={exam} size={36} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF", marginBottom: 2 }}>{exam}</div>
+                  <div style={S.small}>{QUESTIONS.filter(q => q.exam === exam).length} questions</div>
+                </div>
               </button>
             ))}
           </div>
@@ -2655,7 +2683,10 @@ function OnboardingScreen({ onComplete }) {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: "#F0F2FF" }}>{exam}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <ExamLogo exam={exam} size={30} />
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#F0F2FF" }}>{exam}</span>
+                    </div>
                     {selectedExams.includes(exam) && <Icon name="check" size={16} color="#3B82F6" />}
                   </div>
                 </button>
