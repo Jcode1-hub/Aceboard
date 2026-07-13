@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import * as pdfjsLib from "pdfjs-dist/build/pdf";
+import { SatTestRunner, PracticeTestSelect } from './BluebookQuizScreen';
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
@@ -3959,15 +3960,13 @@ export default function AceBoard() {
 
   if (!user) return (
     <div style={shellStyle}>
-      <SignInScreen onSignedIn={handleSignedIn} />
-    </div>
-  );
+      <SignInScreen onS
 
   if (!onboarded) return (
     <div style={shellStyle}>
       <OnboardingScreen onComplete={handleOnboardingComplete} />
     </div>
-  );
+  )
 
   // If in quiz flow, render quiz screens ignoring tabs
   if (screen === "config") return (
@@ -3977,16 +3976,31 @@ export default function AceBoard() {
   );
 
   if (screen === "quiz") return (
-    <div style={shellStyle}>
-      <QuizScreen config={quizConfig} bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onFinish={handleFinish} onBack={() => setScreen("config")} />
-    </div>
-  );
+  <div style={shellStyle}>
+    {quizConfig.exam === "SAT" ? (
+      <SatTestRunner
+        allQuestions={QUESTIONS}
+        practiceTest={quizConfig.practiceTest}
+        isPracticeTest={quizConfig.mode === "practice"}
+        onFinish={(payload) => {
+          const satPool = QUESTIONS.filter(q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest);
+          const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
+          handleFinish(ans, pool, timeInfo);
+        }}
+        onExit={() => setScreen("home")}
+      />
+    ) : (
+      <QuizScreen config={quizConfig} bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onFinish={handleFinish} onBack={() => setScreen("home")} />
+    )}
+  </div>
+);
+
 
   if (screen === "results") return (
     <div style={shellStyle}>
       <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} timeInfo={quizTimeInfo} profile={profile} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} />
     </div>
-  );
+  )
 
   if (screen === "review") return (
     <div style={shellStyle}>
@@ -4038,30 +4052,6 @@ export default function AceBoard() {
 // App.jsx — PracticeTestSelect render
 <PracticeTestSelect
   allQuestions={QUESTIONS}
-  onSelect={(practiceTestNumber) => {
-    handleBegin({
-      exam: "SAT",
-      practiceTest: practiceTestNumber,
-      mode: "practice",
-    });
-  }}
-  onBack={() => setScreen("home")}
-/>
-// handleBegin — unchanged, already works for this
-function handleBegin(config) {
-  setQuizConfig(config);
-  setScreen("quiz");
-}
-// Router — the "quiz" screen branch
-{screen === "quiz" && quizConfig.exam === "SAT" ? (
-  <SatTestRunner
-    allQuestions={QUESTIONS}
-    practiceTest={quizConfig.practiceTest}
-    isPracticeTest={quizConfig.mode === "practice"}
-    onFinish={(payload) => {
-      const satPool = QUESTIONS.filter(
-        q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest
-      );
       const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
       handleFinish(ans, pool, timeInfo);
     }}
