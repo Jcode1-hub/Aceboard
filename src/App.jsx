@@ -3957,16 +3957,22 @@ export default function AceBoard() {
   };
 
   if (booting || !authChecked) return <SplashScreen />;
+if (!user) return (
+  <div style={shellStyle}>
+    <SignInScreen onSignedIn={handleSignedIn} />
+  </div>
+);
 
-  if (!user) return (
-    <div style={shellStyle}>
-      <SignInScreen onS
-
-  if (!onboarded) return (
+if (!onboarded) return (
+  <div style={shellStyle}>
+    <OnboardingScreen onComplete={handleOnboardingComplete} />
+  </div>
+);
+if (!onboarded) return (
     <div style={shellStyle}>
       <OnboardingScreen onComplete={handleOnboardingComplete} />
     </div>
-  )
+  );
 
   // If in quiz flow, render quiz screens ignoring tabs
   if (screen === "config") return (
@@ -3983,17 +3989,26 @@ export default function AceBoard() {
         practiceTest={quizConfig.practiceTest}
         isPracticeTest={quizConfig.mode === "practice"}
         onFinish={(payload) => {
-          const satPool = QUESTIONS.filter(q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest);
+          const satPool = QUESTIONS.filter(
+            q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest
+          );
           const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
           handleFinish(ans, pool, timeInfo);
         }}
         onExit={() => setScreen("home")}
       />
     ) : (
-      <QuizScreen config={quizConfig} bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onFinish={handleFinish} onBack={() => setScreen("home")} />
+      <QuizScreen
+        config={quizConfig}
+        bookmarks={bookmarks}
+        onToggleBookmark={handleToggleBookmark}
+        onFinish={handleFinish}
+        onBack={() => setScreen("home")}
+      />
     )}
   </div>
 );
+
 
 
   if (screen === "results") return (
@@ -4048,24 +4063,50 @@ export default function AceBoard() {
       </nav>
     </div>
   );
+  if (screen === "selectSatTest") return (
+  <div style={shellStyle}>
+    <PracticeTestSelect
+      allQuestions={QUESTIONS}
+      onSelect={(practiceTestNumber) => {
+        handleBegin({
+          exam: "SAT",
+          practiceTest: practiceTestNumber,
+          mode: "practice",
+        });
+      }}
+      onBack={() => setScreen("home")}
+    />
+  </div>
+);
+
+if (screen === "quiz") return (
+  <div style={shellStyle}>
+    {quizConfig.exam === "SAT" ? (
+      <SatTestRunner
+        allQuestions={QUESTIONS}
+        practiceTest={quizConfig.practiceTest}
+        isPracticeTest={quizConfig.mode === "practice"}
+        onFinish={(payload) => {
+          const satPool = QUESTIONS.filter(
+            q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest
+          );
+          const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
+          handleFinish(ans, pool, timeInfo);
+        }}
+        onExit={() => setScreen("home")}
+      />
+    ) : (
+      <QuizScreen
+        config={quizConfig}
+        bookmarks={bookmarks}
+        onToggleBookmark={handleToggleBookmark}
+        onFinish={handleFinish}
+        onBack={() => setScreen("home")}
+      />
+    )}
+  </div>
+);
 }
-// App.jsx — PracticeTestSelect render
-<PracticeTestSelect
-  allQuestions={QUESTIONS}
-      const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
-      handleFinish(ans, pool, timeInfo);
-    }}
-    onExit={() => setScreen("home")}
-  />
-) : screen === "quiz" ? (
-  <QuizScreen
-    config={quizConfig}
-    bookmarks={bookmarks}
-    onToggleBookmark={handleToggleBookmark}
-    onFinish={handleFinish}
-    onBack={() => setScreen("home")}
-  />
-) : null}
 // bridge — already confirmed shape
 function bridgeSatFinish({ results, answers }, satPool) {
   const ans = [];
