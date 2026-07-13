@@ -4035,3 +4035,57 @@ export default function AceBoard() {
     </div>
   );
 }
+// App.jsx — PracticeTestSelect render
+<PracticeTestSelect
+  allQuestions={QUESTIONS}
+  onSelect={(practiceTestNumber) => {
+    handleBegin({
+      exam: "SAT",
+      practiceTest: practiceTestNumber,
+      mode: "practice",
+    });
+  }}
+  onBack={() => setScreen("home")}
+/>
+// handleBegin — unchanged, already works for this
+function handleBegin(config) {
+  setQuizConfig(config);
+  setScreen("quiz");
+}
+// Router — the "quiz" screen branch
+{screen === "quiz" && quizConfig.exam === "SAT" ? (
+  <SatTestRunner
+    allQuestions={QUESTIONS}
+    practiceTest={quizConfig.practiceTest}
+    isPracticeTest={quizConfig.mode === "practice"}
+    onFinish={(payload) => {
+      const satPool = QUESTIONS.filter(
+        q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest
+      );
+      const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
+      handleFinish(ans, pool, timeInfo);
+    }}
+    onExit={() => setScreen("home")}
+  />
+) : screen === "quiz" ? (
+  <QuizScreen
+    config={quizConfig}
+    bookmarks={bookmarks}
+    onToggleBookmark={handleToggleBookmark}
+    onFinish={handleFinish}
+    onBack={() => setScreen("home")}
+  />
+) : null}
+// bridge — already confirmed shape
+function bridgeSatFinish({ results, answers }, satPool) {
+  const ans = [];
+  Object.values(answers).forEach(moduleAnswers => {
+    Object.entries(moduleAnswers).forEach(([qid, selected]) => {
+      const q = satPool.find(q => String(q.id) === String(qid));
+      if (!q) return;
+      ans.push({ qid: q.id, selected, correct: selected === q.answer });
+    });
+  });
+  const totalSeconds = results.reduce((sum, r) => sum + (r.timeSpentSeconds || 0), 0);
+  return { ans, pool: satPool, timeInfo: { timeLog: null, timeLeft: null, totalSeconds } };
+}
