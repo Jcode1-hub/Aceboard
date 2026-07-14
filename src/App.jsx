@@ -77,19 +77,6 @@ const QUESTIONS = [
     question: "Which vitamin is produced in the skin when exposed to sunlight?",
     options: ["Vitamin A", "Vitamin B12", "Vitamin C", "Vitamin D"],
     answer: 3, explanation: "Vitamin D (calciferol) is synthesized in the skin when UV-B rays from sunlight convert 7-dehydrocholesterol to vitamin D3.", source: "JAMB Biology 2022 Q33" },
-  // SAT
-  { id: 13, exam: "SAT", year: 2023, subject: "Math", topic: "Linear Equations", difficulty: "Medium",
-    question: "If 3x + 7 = 22, what is the value of 6x - 4?",
-    options: ["26", "30", "34", "38"],
-    answer: 0, explanation: "3x + 7 = 22 → 3x = 15 → x = 5. So 6x - 4 = 6(5) - 4 = 30 - 4 = 26.", source: "SAT Math 2023, Section 3 Q8" },
-  { id: 14, exam: "SAT", year: 2022, subject: "Reading and writing", topic: "Inference", difficulty: "Hard",
-    question: "In the context of the passage, the author's tone can best be described as:",
-    options: ["Dismissive and condescending", "Analytical and measured", "Enthusiastic and promotional", "Sorrowful and regretful"],
-    answer: 1, explanation: "SAT reading passages about scientific or social topics typically feature measured, analytical prose. Look for evidence in word choice and sentence structure.", source: "SAT Reading 2022, Passage 2 Q14" },
-  { id: 15, exam: "SAT", year: 2023, subject: "Math", topic: "Quadratics", difficulty: "Hard",
-    question: "Which of the following is equivalent to (x² - 9)/(x - 3) for x ≠ 3?",
-    options: ["x - 3", "x + 3", "x² + 3", "x(x-3)"],
-    answer: 1, explanation: "x² - 9 = (x+3)(x-3). Dividing by (x-3) gives (x+3) for x ≠ 3.", source: "SAT Math 2023, Section 4 Q19" },
   // IGCSE
   { id: 16, exam: "IGCSE", year: 2022, subject: "Chemistry", topic: "Acids & Bases", difficulty: "Medium",
     question: "What is the pH of a neutral solution at 25°C?",
@@ -3913,11 +3900,17 @@ export default function AceBoard() {
   };
 
   const handleStart = (exam = null) => {
-    setDefaultExam(exam || profile?.exams?.[0] || null);
-    setDefaultSubject(null);
-    setDefaultTopic(null);
+  const chosenExam = exam || profile?.exams?.[0] || null;
+  setDefaultExam(chosenExam);
+  setDefaultSubject(null);
+  setDefaultTopic(null);
+  if (chosenExam === "SAT") {
+    setScreen("selectSatTest");
+  } else {
     setScreen("config");
-  };
+  }
+};
+
 
   const handleTestTopic = (exam, subject, topic) => {
     setDefaultExam(exam);
