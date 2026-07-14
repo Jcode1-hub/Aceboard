@@ -3900,6 +3900,7 @@ export default function AceBoard() {
   };
 
   const handleStart = (exam = null) => {
+  alert("handleStart called with exam: " + exam);
   const chosenExam = exam || profile?.exams?.[0] || null;
   setDefaultExam(chosenExam);
   setDefaultSubject(null);
@@ -3909,9 +3910,7 @@ export default function AceBoard() {
   } else {
     setScreen("config");
   }
-};
-
-
+}
   const handleTestTopic = (exam, subject, topic) => {
     setDefaultExam(exam);
     setDefaultSubject(subject);
