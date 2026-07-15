@@ -3819,7 +3819,10 @@ export default function AceBoard() {
   const [onboarded, setOnboarded] = useState(false);
   const [profile, setProfile] = useState(null);
   const [tab, setTab] = useState("home");
-  const [screen, setScreen] = useState("home"); // home | config | quiz | results
+  const [screen, setScreen] = useState("home");useEffect(() => {
+  alert("SCREEN CHANGED TO: " + screen);
+}, [screen]);
+// home | config | quiz | results
   const [quizMode, setQuizMode] = useState(null);
   const [defaultExam, setDefaultExam] = useState(null);
   const [defaultSubject, setDefaultSubject] = useState(null);
