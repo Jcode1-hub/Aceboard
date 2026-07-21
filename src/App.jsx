@@ -4029,6 +4029,21 @@ if (!onboarded) return (
       <NotesScreen onBack={() => setScreen("home")} onTestTopic={handleTestTopic} />
     </div>
   );
+if (screen === "selectSatTest") return (
+  <div style={shellStyle}>
+    <PracticeTestSelect
+      allQuestions={QUESTIONS}
+      onSelect={(practiceTestNumber) => {
+        handleBegin({
+          exam: "SAT",
+          practiceTest: practiceTestNumber,
+          mode: "practice",
+        });
+      }}
+      onBack={() => setScreen("home")}
+    />
+  </div>
+);
 
   const navItems = [
     { id: "home", label: "Home", icon: "home" },
@@ -4058,49 +4073,6 @@ if (!onboarded) return (
       </nav>
     </div>
   );
-  if (screen === "selectSatTest") return (
-  <div style={shellStyle}>
-    <PracticeTestSelect
-      allQuestions={QUESTIONS}
-      onSelect={(practiceTestNumber) => {
-        handleBegin({
-          exam: "SAT",
-          practiceTest: practiceTestNumber,
-          mode: "practice",
-        });
-      }}
-      onBack={() => setScreen("home")}
-    />
-  </div>
-);
-
-if (screen === "quiz") return (
-  <div style={shellStyle}>
-    {quizConfig.exam === "SAT" ? (
-      <SatTestRunner
-        allQuestions={QUESTIONS}
-        practiceTest={quizConfig.practiceTest}
-        isPracticeTest={quizConfig.mode === "practice"}
-        onFinish={(payload) => {
-          const satPool = QUESTIONS.filter(
-            q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest
-          );
-          const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
-          handleFinish(ans, pool, timeInfo);
-        }}
-        onExit={() => setScreen("home")}
-      />
-    ) : (
-      <QuizScreen
-        config={quizConfig}
-        bookmarks={bookmarks}
-        onToggleBookmark={handleToggleBookmark}
-        onFinish={handleFinish}
-        onBack={() => setScreen("home")}
-      />
-    )}
-  </div>
-);
 }
 // bridge — already confirmed shape
 function bridgeSatFinish({ results, answers }, satPool) {
