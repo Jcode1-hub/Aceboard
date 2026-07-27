@@ -1,0 +1,17 @@
+{
+  "name": "AceBoard",
+  "short_name": "AceBoard",
+  "description": "Exam prep for WAEC, NECO, JAMB, GCE, IGCSE, SAT, ACT, and IELTS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080D1E",
+  "theme_color": "#080D1E",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
