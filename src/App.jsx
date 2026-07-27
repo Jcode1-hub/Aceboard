@@ -4260,7 +4260,6 @@ export default function AceBoard() {
   const [profile, setProfile] = useState(null);
   const [tab, setTab] = useState("home");
   const [screen, setScreen] = useState("home"); useEffect(() => {
-    alert("SCREEN CHANGED TO: " + screen);
   }, [screen]);
   // home | config | quiz | results
   const [quizMode, setQuizMode] = useState(null);
@@ -4343,7 +4342,6 @@ export default function AceBoard() {
   };
 
   const handleStart = (exam = null) => {
-    alert("handleStart called with exam: " + exam);
     const chosenExam = exam || profile?.exams?.[0] || null;
     setDefaultExam(chosenExam);
     setDefaultSubject(null);
