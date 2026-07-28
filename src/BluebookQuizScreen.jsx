@@ -526,7 +526,6 @@ export function BluebookQuizScreen({
       : "Each passage or passage pair is followed by questions. Read each passage and choose the best answer."}
   </div>
 )}
-
         <TimerPill
           secondsLeft={secondsLeft}
           hidden={timerHidden}
