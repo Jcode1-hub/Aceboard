@@ -401,6 +401,7 @@ export function BluebookQuizScreen({
   const [showFiveMinWarning, setShowFiveMinWarning] = useState(false);
   const [fiveMinWarningShown, setFiveMinWarningShown] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [gridInValue, setGridInValue] = useState("");
   const startedAtRef = useRef(Date.now());
 
@@ -547,19 +548,47 @@ export function BluebookQuizScreen({
           >
             ✎ Highlights &amp; Notes
           </button>
-          <button
-            onClick={onExit}
-            style={{
-              border: "none",
-              background: "none",
-              fontSize: 18,
-              color: TOKENS.textMuted,
-              cursor: "pointer",
-            }}
-            title="Exit"
-          >
-            ⋮
-          </button>
+          <div style={{ position: "relative" }}>
+  <button
+    onClick={() => setMoreMenuOpen(o => !o)}
+    style={{
+      border: "none",
+      background: "none",
+      fontSize: 18,
+      color: TOKENS.textMuted,
+      cursor: "pointer",
+    }}
+    title="More options"
+  >
+    ⋮
+  </button>
+  {moreMenuOpen && (
+    <div style={{
+      position: "absolute",
+      right: 0,
+      top: "100%",
+      marginTop: 4,
+      background: "#fff",
+      border: `1px solid ${TOKENS.border}`,
+      borderRadius: 8,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      minWidth: 180,
+      zIndex: 100,
+    }}>
+      {["Help", "Shortcuts", "Assistive Technology", "Line Reader"].map(label => (
+        <div key={label} style={{ padding: "10px 14px", fontSize: 14, color: TOKENS.textMuted, cursor: "not-allowed" }}>
+          {label}
+        </div>
+      ))}
+      <div
+        onClick={() => { setMoreMenuOpen(false); onExit(); }}
+        style={{ padding: "10px 14px", fontSize: 14, color: TOKENS.blue, fontWeight: 600, cursor: "pointer", borderTop: `1px solid ${TOKENS.border}` }}
+      >
+        Save & Exit
+      </div>
+    </div>
+  )}
+</div>
         </div>
       </div>
 
