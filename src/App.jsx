@@ -4342,7 +4342,7 @@ export default function AceBoard() {
   };
 
   const handleStart = (exam = null) => {
-    const chosenExam = exam || profile?.exams?.[0] || null;
+  const chosenExam = exam || profile?.exams?.find(e => e !== "SAT") || profile?.exams?.[0] || null;
     setDefaultExam(chosenExam);
     setDefaultSubject(null);
     setDefaultTopic(null);
