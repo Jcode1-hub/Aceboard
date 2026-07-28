@@ -402,6 +402,7 @@ export function BluebookQuizScreen({
   const [fiveMinWarningShown, setFiveMinWarningShown] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [directionsOpen, setDirectionsOpen] = useState(false);
   const [gridInValue, setGridInValue] = useState("");
   const startedAtRef = useRef(Date.now());
 
@@ -495,21 +496,36 @@ export function BluebookQuizScreen({
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: TOKENS.navy }}>
             {sectionLabel}
-          </div>
-          <button
-            style={{
-              border: "none",
-              background: "none",
-              color: TOKENS.blue,
-              fontSize: 12,
-              fontWeight: 600,
-              padding: 0,
-              cursor: "pointer",
-            }}
-          >
-            Directions ⌄
+      <button
+  onClick={() => setDirectionsOpen(o => !o)}
+  style={{
+    border: "none",
+    background: "none",
+    color: TOKENS.blue,
+    fontSize: 12,
+    fontWeight: 600,
+    padding: 0,
+    cursor: "pointer",
+  }}
+>
+  Directions {directionsOpen ? "︿" : "⌄"}
           </button>
         </div>
+{directionsOpen && (
+  <div style={{
+    fontSize: 13,
+    color: TOKENS.textMuted,
+    lineHeight: 1.5,
+    padding: "8px 12px",
+    background: TOKENS.bg,
+    borderRadius: 6,
+    marginTop: 6,
+  }}>
+    {subject === "Math"
+      ? "For each question, determine the best answer. Some questions may require the use of a calculator."
+      : "Each passage or passage pair is followed by questions. Read each passage and choose the best answer."}
+  </div>
+)}
 
         <TimerPill
           secondsLeft={secondsLeft}
