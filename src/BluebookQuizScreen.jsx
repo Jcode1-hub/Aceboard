@@ -606,7 +606,7 @@ export function BluebookQuizScreen({
 </div>
         </div>
       </div>
-
+ </div>
       {/* Body */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {isRW && q.passage && (
