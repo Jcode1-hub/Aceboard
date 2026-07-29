@@ -23,6 +23,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const TOKENS = {
   navy: "#0C2957",
+    gold: "#FFC72C",
   blue: "#0C5FF1",
   blueLight: "#EAF1FE",
   red: "#C4122F",
@@ -402,7 +403,7 @@ export function BluebookQuizScreen({
   const [fiveMinWarningShown, setFiveMinWarningShown] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [directionsOpen, setDirectionsOpen] = useState(true);
   const [gridInValue, setGridInValue] = useState("");
   const startedAtRef = useRef(Date.now());
 
@@ -470,7 +471,7 @@ export function BluebookQuizScreen({
       {isPracticeTest && (
         <div
           style={{
-            background: TOKENS.red,
+            background: TOKENS.navy,
             color: "#fff",
             textAlign: "center",
             fontSize: 12,
@@ -493,39 +494,29 @@ export function BluebookQuizScreen({
           borderBottom: `1px solid ${TOKENS.borderLight}`,
         }}
       >
-        <div>
+              <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: TOKENS.navy }}>
             {sectionLabel}
-      <button
-  onClick={() => setDirectionsOpen(o => !o)}
-  style={{
-    border: "none",
-    background: "none",
-    color: TOKENS.blue,
-    fontSize: 12,
-    fontWeight: 600,
-    padding: 0,
-    cursor: "pointer",
-  }}
->
-  Directions {directionsOpen ? "︿" : "⌄"}
+          </div>
+          <button
+            onClick={() => setDirectionsOpen(true)}
+            style={{
+              border: "none",
+              background: "none",
+              color: TOKENS.blue,
+              fontSize: 13,
+              fontWeight: 600,
+              padding: 0,
+              marginTop: 2,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            Directions <span style={{ fontSize: 10 }}>{directionsOpen ? "︿" : "⌄"}</span>
           </button>
         </div>
-{directionsOpen && (
-  <div style={{
-    fontSize: 13,
-    color: TOKENS.textMuted,
-    lineHeight: 1.5,
-    padding: "8px 12px",
-    background: TOKENS.bg,
-    borderRadius: 6,
-    marginTop: 6,
-  }}>
-    {subject === "Math"
-      ? "For each question, determine the best answer. Some questions may require the use of a calculator."
-      : "Each passage or passage pair is followed by questions. Read each passage and choose the best answer."}
-  </div>
-)}
         <TimerPill
           secondsLeft={secondsLeft}
           hidden={timerHidden}
@@ -606,7 +597,68 @@ export function BluebookQuizScreen({
 </div>
         </div>
       </div>
- </div>
+ 
+       {directionsOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            zIndex: 80,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            paddingTop: 60,
+          }}
+          onClick={() => setDirectionsOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              width: "90%",
+              maxWidth: 900,
+              minHeight: 280,
+              borderRadius: 4,
+              padding: "32px 40px",
+              fontFamily: TOKENS.font,
+              boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div style={{ fontSize: 16, lineHeight: 1.7, color: "#1A1A1A" }}>
+              {subject === "Math" ? (
+                <>
+                  <p>The questions in this section address a number of important math skills.</p>
+                  <p>Unless otherwise indicated: All variables and expressions represent real numbers. All figures are drawn to scale. All angle measures are positive. All numbers are real numbers.</p>
+                  <p>For each question, determine the best answer using the information provided. You may use the calculator throughout this section.</p>
+                </>
+              ) : (
+                <>
+                  <p>The questions in this section address a number of important reading and writing skills. Each question includes one or more passages, which may include a table or graph. Read each passage and question carefully, and then choose the best answer to the question based on the passage(s).</p>
+                  <p>All questions in this section are multiple-choice with four answer choices. Each question has a single best answer.</p>
+                </>
+              )}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 32 }}>
+              <button
+                onClick={() => setDirectionsOpen(false)}
+                style={{
+                  background: TOKENS.gold,
+                  color: "#1A1A1A",
+                  border: "none",
+                  borderRadius: 24,
+                  padding: "10px 32px",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Body */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {isRW && q.passage && (
