@@ -35,6 +35,7 @@ const TOKENS = {
   warn: "#B54708",
   warnBg: "#FEF3E6",
   font: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
+    serif: `Georgia, "Times New Roman", Times, serif`,
 };
 
 // Real digital SAT module durations, in minutes.
@@ -388,6 +389,7 @@ export function BluebookQuizScreen({
   subject,             // "Reading and Writing" | "Math"
   durationMinutes,     // real Bluebook duration for this module
   isPracticeTest = true,
+  userName,
   answers,             // { [questionId]: answerValue }
   setAnswers,
   marked,              // Set of marked question ids
@@ -466,24 +468,9 @@ export function BluebookQuizScreen({
 
   const isRW = subject === "Reading and Writing";
 
-  return (
+    return (
     <div style={{ fontFamily: TOKENS.font, minHeight: "100vh", display: "flex", flexDirection: "column", background: TOKENS.bg }}>
-      {isPracticeTest && (
-        <div
-          style={{
-            background: TOKENS.navy,
-            color: "#fff",
-            textAlign: "center",
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: 0.5,
-            padding: "4px 0",
-          }}
-        >
-          THIS IS A PRACTICE TEST
-        </div>
-      )}
-
+  
       {/* Header bar */}
       <div
         style={{
@@ -597,7 +584,23 @@ export function BluebookQuizScreen({
 </div>
         </div>
       </div>
- 
+  
+      {isPracticeTest && (
+        <div
+          style={{
+            background: TOKENS.navy,
+            color: "#fff",
+            textAlign: "center",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 0.5,
+            padding: "4px 0",
+          }}
+        >
+          THIS IS A PRACTICE TEST
+        </div>
+      )}
+
        {directionsOpen && (
         <div
           style={{
@@ -665,6 +668,7 @@ export function BluebookQuizScreen({
           <div
             style={{
               width: "50%",
+                            fontFamily: TOKENS.serif,
               borderRight: `1px solid ${TOKENS.borderLight}`,
               padding: "28px 32px",
               overflowY: "auto",
@@ -706,6 +710,7 @@ export function BluebookQuizScreen({
             <button
               onClick={() => onToggleMark(q.id)}
               style={{
+                              fontFamily: TOKENS.serif,
                 border: "none",
                 background: "none",
                 cursor: "pointer",
@@ -727,7 +732,7 @@ export function BluebookQuizScreen({
             </div>
           )}
 
-          <div style={{ fontSize: 16, lineHeight: 1.6, color: "#1A1A1A", marginBottom: 24, fontWeight: 500 }}>
+                    <div style={{ fontSize: 16, lineHeight: 1.6, color: "#1A1A1A", marginBottom: 24, fontWeight: 500, fontFamily: TOKENS.serif }}>
             {q.question}
           </div>
 
@@ -810,7 +815,7 @@ export function BluebookQuizScreen({
         }}
       >
         <div style={{ fontSize: 13, color: TOKENS.textMuted, fontWeight: 600 }}>
-          {subject}
+          {userName}
         </div>
 
         <button
@@ -1083,7 +1088,7 @@ export function PracticeTestSelect({ allQuestions, onSelect, onBack }) {
  * Expects `allQuestions` = your full QUESTIONS array (already imported
  * in App.jsx).
  */
-export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = true, onFinish, onExit }) {
+export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = true, userName, onFinish, onExit }) {
   const MODULE_SEQUENCE = [
     { subject: "Reading and Writing", module: "Module 1", label: "Section 1, Module 1: Reading and Writing" },
     { subject: "Reading and Writing", module: "Module 2", label: "Section 1, Module 2: Reading and Writing" },
@@ -1201,6 +1206,7 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
 
   return (
     <BluebookQuizScreen
+          userName={userName}
       questions={moduleQuestions}
       sectionLabel={step.label}
       subject={step.subject}

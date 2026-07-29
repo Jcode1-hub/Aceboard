@@ -4418,6 +4418,7 @@ export default function AceBoard() {
     <div style={shellStyle}>
       {quizConfig.exam === "SAT" ? (
         <SatTestRunner
+                  userName={user?.displayName || "Student"}
           allQuestions={QUESTIONS}
           practiceTest={quizConfig.practiceTest}
           isPracticeTest={quizConfig.mode === "practice"}
