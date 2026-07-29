@@ -407,6 +407,15 @@ export function BluebookQuizScreen({
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [directionsOpen, setDirectionsOpen] = useState(true);
   const [gridInValue, setGridInValue] = useState("");
+  const [eliminatorMode, setEliminatorMode] = useState(false);
+const [eliminated, setEliminated] = useState({}); // { [questionId]: Set of eliminated option indices }
+function toggleEliminated(optionIndex) {
+  setEliminated((prev) => {
+    const cur = new Set(prev[q.id] || []);
+    cur.has(optionIndex) ? cur.delete(optionIndex) : cur.add(optionIndex);
+    return { ...prev, [q.id]: cur };
+  });
+}
   const startedAtRef = useRef(Date.now());
 
   const q = questions[currentIndex];
@@ -541,6 +550,22 @@ export function BluebookQuizScreen({
           >
             ✎ Highlights &amp; Notes
           </button>
+          <button
+  onClick={() => setEliminatorMode((v) => !v)}
+  style={{
+    border: `1px solid ${eliminatorMode ? TOKENS.blue : TOKENS.border}`,
+    background: eliminatorMode ? TOKENS.blueLight : "none",
+    borderRadius: 4,
+    padding: "4px 8px",
+    fontSize: 12,
+    fontWeight: 700,
+    color: TOKENS.navy,
+    cursor: "pointer",
+  }}
+  title="Answer Eliminator"
+>
+  A̶B̶C̶
+</button>
           <div style={{ position: "relative" }}>
   <button
     onClick={() => setMoreMenuOpen(o => !o)}
@@ -722,7 +747,10 @@ export function BluebookQuizScreen({
                 gap: 4,
               }}
             >
-              {marked.has(q.id) ? "🚩" : "⚑"} Mark for Review
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={marked.has(q.id) ? TOKENS.red : "none"} stroke={marked.has(q.id) ? TOKENS.red : TOKENS.textMuted} strokeWidth="2">
+  <path d="M5 3v18l7-5 7 5V3a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1z" />
+</svg>
+Mark for Review
             </button>
           </div>
 
@@ -744,7 +772,7 @@ export function BluebookQuizScreen({
                 return (
                   <button
                     key={i}
-                    onClick={() => selectMcq(i)}
+                    onClick={() => eliminatorMode ? toggleEliminated(i) : selectMcq(i)}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -777,7 +805,9 @@ export function BluebookQuizScreen({
                     >
                       {letter}
                     </span>
-                    {opt}
+                    <span style={{ textDecoration: (eliminated[q.id]?.has(i)) ? "line-through" : "none", opacity: (eliminated[q.id]?.has(i)) ? 0.5 : 1 }}>
+  {opt}
+</span>
                   </button>
                 );
               })}
