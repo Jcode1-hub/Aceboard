@@ -2628,6 +2628,150 @@ function TimeTrendChart({ timeLog }) {
 }
 
 // ── RESULTS SCREEN ────────────────────────────────────────────────────────────
+function SatResultsScreen({ answers, questions, timeInfo, userName, onHome, onReview }) {
+  const qById = {};
+  questions.forEach(q => { qById[q.id] = q; });
+
+  const rwAnswers = answers.filter(a => qById[a.qid]?.subject === "Reading and Writing");
+  const mathAnswers = answers.filter(a => qById[a.qid]?.subject === "Math");
+
+  const rwCorrect = rwAnswers.filter(a => a.correct).length;
+  const mathCorrect = mathAnswers.filter(a => a.correct).length;
+  const rwTotal = rwAnswers.length;
+  const mathTotal = mathAnswers.length;
+
+  const rwPct = rwTotal ? (rwCorrect / rwTotal) * 100 : 0;
+  const mathPct = mathTotal ? (mathCorrect / mathTotal) * 100 : 0;
+
+  const rwScore = pctToScaledScore(rwPct);
+  const mathScore = pctToScaledScore(mathPct);
+  const totalScore = rwScore + mathScore;
+
+  const totalPercentile = lookupPercentile(totalScore, SAT_TOTAL_PERCENTILES);
+  const rwPercentile = lookupPercentile(rwScore, SAT_SECTION_PERCENTILES.RW);
+  const mathPercentile = lookupPercentile(mathScore, SAT_SECTION_PERCENTILES.Math);
+
+  const totalCorrect = rwCorrect + mathCorrect;
+  const totalQuestions = rwTotal + mathTotal;
+  const totalIncorrect = totalQuestions - totalCorrect;
+
+  // Domain breakdown
+  const rwDomains = {};
+  rwAnswers.forEach(a => {
+    const q = qById[a.qid];
+    const domain = getRWDomain(q.topic);
+    if (!rwDomains[domain]) rwDomains[domain] = { correct: 0, total: 0 };
+    rwDomains[domain].total++;
+    if (a.correct) rwDomains[domain].correct++;
+  });
+
+  const mathDomains = {};
+  mathAnswers.forEach(a => {
+    const q = qById[a.qid];
+    const domain = getMathDomain(q.topic);
+    if (!mathDomains[domain]) mathDomains[domain] = { correct: 0, total: 0 };
+    mathDomains[domain].total++;
+    if (a.correct) mathDomains[domain].correct++;
+  });
+
+  function DomainBar({ label, correct, total }) {
+    const pct = total ? Math.round((correct / total) * 100) : 0;
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 2 }}>{label}</div>
+        <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 6 }}>{correct}/{total} correct</div>
+        <div style={S.progressBar(pct)}>
+          <div style={S.progressFill(pct, pct >= 70 ? "#22C55E" : pct >= 50 ? "#F59E0B" : "#EF4444")} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={S.screen}>
+      <div style={{ ...S.header, textAlign: "center", paddingBottom: 24 }}>
+        <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 4 }}>{userName}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#94A3B8", letterSpacing: 1 }}>TOTAL SCORE</div>
+        <div style={{ fontSize: 56, fontWeight: 900, color: "#3B82F6", letterSpacing: "-0.04em" }}>{totalScore}</div>
+        <div style={{ fontSize: 13, color: "#94A3B8" }}>Score Range: 400–1600</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#3B82F6", marginTop: 6 }}>
+          {totalPercentile}th percentile (User Group)
+        </div>
+      </div>
+
+      <div style={{ ...S.px, ...S.gap(14) }}>
+        {/* Section scores */}
+        <div style={S.card}>
+          <p style={{ ...S.label, marginBottom: 16 }}>Section Scores</p>
+          <div style={{ display: "flex", justifyContent: "space-around", flexWrap: "wrap", gap: 20 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 12, color: "#94A3B8" }}>Reading and Writing</div>
+              <div style={{ fontSize: 36, fontWeight: 900, color: "#3B82F6" }}>{rwScore}</div>
+              <div style={{ fontSize: 11, color: "#94A3B8" }}>200–800</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6" }}>{rwPercentile}th percentile</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 12, color: "#94A3B8" }}>Math</div>
+              <div style={{ fontSize: 36, fontWeight: 900, color: "#3B82F6" }}>{mathScore}</div>
+              <div style={{ fontSize: 11, color: "#94A3B8" }}>200–800</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6" }}>{mathPercentile}th percentile</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Questions overview */}
+        <div style={S.card}>
+          <p style={{ ...S.label, marginBottom: 12 }}>Questions Overview</p>
+          <div style={{ display: "flex", justifyContent: "space-around", marginBottom: 12 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 28, fontWeight: 900 }}>{totalCorrect}</div>
+              <div style={{ fontSize: 11, color: "#94A3B8" }}>Correct</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 28, fontWeight: 900 }}>{totalIncorrect}</div>
+              <div style={{ fontSize: 11, color: "#94A3B8" }}>Incorrect</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 28, fontWeight: 900 }}>{totalQuestions}</div>
+              <div style={{ fontSize: 11, color: "#94A3B8" }}>Total</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-around", fontSize: 12, color: "#94A3B8" }}>
+            <span>R&W: {rwCorrect}/{rwTotal} correct</span>
+            <span>Math: {mathCorrect}/{mathTotal} correct</span>
+          </div>
+        </div>
+
+        {/* Knowledge and Skills */}
+        <div style={S.card}>
+          <p style={{ ...S.label, marginBottom: 4 }}>Knowledge and Skills</p>
+          <p style={{ fontSize: 11, color: "#94A3B8", marginBottom: 16 }}>
+            Your performance across content domains
+          </p>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Reading and Writing</div>
+          {Object.entries(rwDomains).map(([domain, data]) => (
+            <DomainBar key={domain} label={domain} correct={data.correct} total={data.total} />
+          ))}
+          <div style={{ fontSize: 13, fontWeight: 700, marginTop: 16, marginBottom: 10 }}>Math</div>
+          {Object.entries(mathDomains).map(([domain, data]) => (
+            <DomainBar key={domain} label={domain} correct={data.correct} total={data.total} />
+          ))}
+        </div>
+
+        <p style={{ fontSize: 11, color: "#64748B", lineHeight: 1.5, padding: "0 4px" }}>
+          Disclaimer: These scores are a simulated estimate based on AceBoard's scoring
+          approximation, for practice purposes only. Your actual SAT score may differ due
+          to College Board's official equating process. This is not an official score.
+        </p>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 4, marginBottom: 20 }}>
+          <button onClick={onReview} style={{ ...S.btnPrimary, flex: 1 }}>Review Answers</button>
+          <button onClick={onHome} style={{ ...S.btnSecondary, flex: 1 }}>Home</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, onHome, onReview }) {
   const correct = answers.filter(a => a.correct).length;
   const total = answers.length;
@@ -2784,6 +2928,147 @@ function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, o
 }
 
 // ── REVIEW SCREEN (Practice mode only) ───────────────────────────────────────
+function SatReviewScreen({ answers, questions, onBack }) {
+  const [idx, setIdx] = useState(0);
+  const [revealAnswer, setRevealAnswer] = useState(true);
+
+  const qById = {};
+  questions.forEach(q => { qById[q.id] = q; });
+
+  const a = answers[idx];
+  const q = qById[a.qid];
+  const optLabel = ["A", "B", "C", "D"];
+
+  // section-relative numbering, e.g. "Reading and Writing: Question 3"
+  const sameSubjectAnswers = answers.filter(x => qById[x.qid]?.subject === q.subject);
+  const posInSection = sameSubjectAnswers.findIndex(x => x.qid === a.qid) + 1;
+
+  const selectedLabel = a.selected != null ? optLabel[a.selected] : "—";
+  const correctLabel = optLabel[q.answer];
+
+  return (
+    <div style={{ fontFamily: `Georgia, "Times New Roman", serif`, minHeight: "100vh", background: "#fff", color: "#1A1A1A" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "16px 24px",
+          borderBottom: "1px solid #E2E8F0",
+          fontFamily: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>Review Answers</div>
+          <div style={{ fontSize: 13, color: "#64748B" }}>{idx + 1} of {answers.length}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A1A1A" }}>
+            Knowledge and Skills: {q.subject === "Math" ? getMathDomain(q.topic) : getRWDomain(q.topic)}
+          </div>
+          <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
+            Difficulty level: <span style={{ fontWeight: 700 }}>{q.difficulty}</span>
+          </div>
+        </div>
+        <button onClick={onBack} style={{ border: "none", background: "none", fontSize: 20, color: "#64748B", cursor: "pointer" }}>✕</button>
+      </div>
+
+      <div style={{ display: "flex", minHeight: "calc(100vh - 200px)" }}>
+        <div style={{ width: "50%", borderRight: "1px solid #E2E8F0", padding: "28px 32px", overflowY: "auto" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, fontFamily: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif` }}>
+            {q.subject}: Question {posInSection}
+          </div>
+          {q.passage && (
+            <p style={{ fontSize: 16, lineHeight: 1.7, marginBottom: 20 }}>{q.passage}</p>
+          )}
+          <p style={{ fontSize: 16, lineHeight: 1.7, marginBottom: 20 }}>{q.question}</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {q.options.map((opt, i) => (
+              <div key={i} style={{ fontSize: 15, lineHeight: 1.5 }}>{opt}</div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ width: "50%", padding: "28px 32px", overflowY: "auto", fontFamily: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif` }}>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Answer</div>
+          {revealAnswer ? (
+            <>
+              <div
+                style={{
+                  background: a.correct ? "#DCFCE7" : "#FEE2E2",
+                  color: a.correct ? "#166534" : "#991B1B",
+                  padding: "14px 18px",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  marginBottom: 24,
+                }}
+              >
+                You selected answer {selectedLabel}. The correct answer is {correctLabel}.
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Rationale</div>
+              <p style={{ fontSize: 14, lineHeight: 1.7, color: "#334155" }}>{q.explanation}</p>
+            </>
+          ) : (
+            <p style={{ fontSize: 14, color: "#94A3B8" }}>Answer hidden. Check the box below to reveal it.</p>
+          )}
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "16px 24px",
+          borderTop: "1px solid #E2E8F0",
+          fontFamily: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`,
+        }}
+      >
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+          <input type="checkbox" checked={revealAnswer} onChange={(e) => setRevealAnswer(e.target.checked)} />
+          Show correct answer and explanation
+        </label>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => setIdx(i => Math.max(i - 1, 0))}
+            disabled={idx === 0}
+            style={{
+              background: "#3B82F6",
+              color: "#fff",
+              border: "none",
+              borderRadius: 24,
+              padding: "10px 24px",
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: "pointer",
+              opacity: idx === 0 ? 0.4 : 1,
+            }}
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => setIdx(i => Math.min(i + 1, answers.length - 1))}
+            disabled={idx === answers.length - 1}
+            style={{
+              background: "#3B82F6",
+              color: "#fff",
+              border: "none",
+              borderRadius: 24,
+              padding: "10px 24px",
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: "pointer",
+              opacity: idx === answers.length - 1 ? 0.4 : 1,
+            }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function ReviewScreen({ answers, questions, onBack }) {
   const [idx, setIdx] = useState(0);
   const q = questions[idx];
@@ -4445,15 +4730,30 @@ export default function AceBoard() {
 
 
 
-  if (screen === "results") return (
+    if (screen === "results") return (
     <div style={shellStyle}>
-      <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} timeInfo={quizTimeInfo} profile={profile} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} />
+      {quizConfig?.exam === "SAT" ? (
+        <SatResultsScreen
+          answers={quizAnswers}
+          questions={quizPool}
+          timeInfo={quizTimeInfo}
+          userName={user?.displayName || "Student"}
+          onHome={handleHome}
+          onReview={() => setScreen("review")}
+        />
+      ) : (
+        <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} timeInfo={quizTimeInfo} profile={profile} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} />
+      )}
     </div>
   )
 
-  if (screen === "review") return (
+    if (screen === "review") return (
     <div style={shellStyle}>
-      <ReviewScreen answers={quizAnswers} questions={quizPool} onBack={() => setScreen("results")} />
+      {quizConfig?.exam === "SAT" ? (
+        <SatReviewScreen answers={quizAnswers} questions={quizPool} onBack={() => setScreen("results")} />
+      ) : (
+        <ReviewScreen answers={quizAnswers} questions={quizPool} onBack={() => setScreen("results")} />
+      )}
     </div>
   );
 
@@ -4514,6 +4814,78 @@ export default function AceBoard() {
   );
 }
 // bridge — already confirmed shape
+/* ============================ SAT Scoring Engine ============================ */
+/* NOTE: College Board's real scoring curve is proprietary and varies slightly per
+   test form. This is a reasonable smoothed approximation for practice purposes only. */
+
+const SAT_CURVE_ANCHORS = [
+  [0, 200], [10, 290], [20, 370], [30, 440], [40, 500],
+  [50, 560], [60, 610], [70, 660], [80, 710], [90, 760], [100, 800],
+];
+
+function pctToScaledScore(pct) {
+  for (let i = 0; i < SAT_CURVE_ANCHORS.length - 1; i++) {
+    const [p1, s1] = SAT_CURVE_ANCHORS[i];
+    const [p2, s2] = SAT_CURVE_ANCHORS[i + 1];
+    if (pct >= p1 && pct <= p2) {
+      const t = (pct - p1) / (p2 - p1);
+      return Math.round((s1 + t * (s2 - s1)) / 10) * 10;
+    }
+  }
+  return pct <= 0 ? 200 : 800;
+}
+
+// Official College Board percentile tables (User Group), 10-point increments
+const SAT_TOTAL_PERCENTILES = {
+  1600: 99, 1550: 99, 1500: 98, 1450: 96, 1400: 93, 1350: 90, 1300: 86,
+  1250: 82, 1200: 76, 1150: 70, 1100: 63, 1050: 56, 1000: 48, 950: 41,
+  900: 33, 850: 25, 800: 18, 750: 11, 700: 5, 650: 3, 600: 1, 550: 1,
+  500: 1, 450: 1, 400: 1,
+};
+const SAT_SECTION_PERCENTILES = {
+  RW: { 800: 99, 750: 98, 700: 93, 650: 85, 600: 74, 550: 61, 500: 45, 450: 30, 400: 16, 350: 5, 300: 2, 200: 1 },
+  Math: { 800: 99, 750: 96, 700: 92, 650: 87, 600: 77, 550: 66, 500: 51, 450: 37, 400: 22, 350: 8, 300: 2, 200: 1 },
+};
+
+function lookupPercentile(score, table) {
+  const keys = Object.keys(table).map(Number).sort((a, b) => b - a);
+  for (const k of keys) {
+    if (score >= k) return table[k];
+  }
+  return 1;
+}
+
+// Map granular topics to official SAT domains
+const RW_DOMAIN_MAP = {
+  "Vocabulary in Context": "Information and Ideas",
+  "Central Ideas and Details": "Information and Ideas",
+  "Command of Evidence": "Information and Ideas",
+  "Quantitative Evidence": "Information and Ideas",
+  "Inferences": "Information and Ideas",
+  "Text Structure and Purpose": "Craft and Structure",
+  "Cross-Text Connections": "Craft and Structure",
+  "Words in Context": "Craft and Structure",
+  "Rhetorical Synthesis": "Expression of Ideas",
+  "Transitions": "Expression of Ideas",
+};
+function getRWDomain(topic) {
+  if (topic.startsWith("Standard English Conventions")) return "Standard English Conventions";
+  return RW_DOMAIN_MAP[topic] || "Information and Ideas";
+}
+const MATH_DOMAIN_MAP = {
+  "Algebra": "Algebra",
+  "Advanced Math": "Advanced Math",
+  "Problem-Solving and Data Analysis": "Problem-Solving and Data Analysis",
+  "Statistics": "Problem-Solving and Data Analysis",
+  "Geometry": "Geometry and Trigonometry",
+  "Trigonometry": "Geometry and Trigonometry",
+};
+function getMathDomain(topic) {
+  for (const key in MATH_DOMAIN_MAP) {
+    if (topic.includes(key)) return MATH_DOMAIN_MAP[key];
+  }
+  return "Algebra";
+}
 function bridgeSatFinish({ results, answers }, satPool) {
   const ans = [];
   Object.values(answers).forEach(moduleAnswers => {
