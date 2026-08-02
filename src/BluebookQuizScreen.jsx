@@ -408,6 +408,8 @@ export function BluebookQuizScreen({
   const [directionsOpen, setDirectionsOpen] = useState(true);
   const [gridInValue, setGridInValue] = useState("");
   const [eliminatorMode, setEliminatorMode] = useState(false);
+  const [paneWidth, setPaneWidth] = useState(50); // percentage
+const isDraggingRef = useRef(false);
 const [eliminated, setEliminated] = useState({}); // { [questionId]: Set of eliminated option indices }
 function toggleEliminated(optionIndex) {
   setEliminated((prev) => {
@@ -420,6 +422,34 @@ function toggleEliminated(optionIndex) {
 
   const q = questions[currentIndex];
   const isMcq = q?.answerType !== "gridIn";
+  function startDrag() {
+  isDraggingRef.current = true;
+  document.body.style.userSelect = "none";
+}
+
+useEffect(() => {
+  function handleMove(e) {
+    if (!isDraggingRef.current) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const containerWidth = window.innerWidth;
+    const pct = (clientX / containerWidth) * 100;
+    setPaneWidth(Math.min(75, Math.max(25, pct)));
+  }
+  function handleUp() {
+    isDraggingRef.current = false;
+    document.body.style.userSelect = "";
+  }
+  window.addEventListener("mousemove", handleMove);
+  window.addEventListener("mouseup", handleUp);
+  window.addEventListener("touchmove", handleMove);
+  window.addEventListener("touchend", handleUp);
+  return () => {
+    window.removeEventListener("mousemove", handleMove);
+    window.removeEventListener("mouseup", handleUp);
+    window.removeEventListener("touchmove", handleMove);
+    window.removeEventListener("touchend", handleUp);
+  };
+}, []);
 
   // countdown
   useEffect(() => {
@@ -653,7 +683,7 @@ function toggleEliminated(optionIndex) {
               boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
             }}
           >
-            <div style={{ fontSize: 16, lineHeight: 1.7, color: "#1A1A1A" }}>
+                        <div style={{ fontSize: 16, lineHeight: 1.7, color: "#1A1A1A" }}>
               {subject === "Math" ? (
                 <>
                   <p>The questions in this section address a number of important math skills.</p>
@@ -684,31 +714,49 @@ function toggleEliminated(optionIndex) {
                 Close
               </button>
             </div>
+
+        
           </div>
         </div>
       )}
-      {/* Body */}
+            {/* Body */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {isRW && q.passage && (
-          <div
-            style={{
-              width: "50%",
-                            fontFamily: TOKENS.serif,
-              borderRight: `1px solid ${TOKENS.borderLight}`,
-              padding: "28px 32px",
-              overflowY: "auto",
-              fontSize: 16,
-              lineHeight: 1.7,
-              color: "#1A1A1A",
-            }}
-          >
-            {q.passage}
-          </div>
+          <>
+            <div
+              style={{
+                width: `${paneWidth}%`,
+                fontFamily: TOKENS.serif,
+                padding: "28px 32px",
+                overflowY: "auto",
+                fontSize: 16,
+                lineHeight: 1.7,
+                color: "#1A1A1A",
+              }}
+            >
+              {q.passage}
+            </div>
+            <div
+              onMouseDown={startDrag}
+              onTouchStart={startDrag}
+              style={{
+                width: 6,
+                cursor: "col-resize",
+                background: TOKENS.borderLight,
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <div style={{ width: 2, height: 32, background: TOKENS.border, borderRadius: 2 }} />
+            </div>
+          </>
         )}
 
         <div
           style={{
-            width: isRW && q.passage ? "50%" : "100%",
+                        width: isRW && q.passage ? `${100 - paneWidth}%` : "100%",
             maxWidth: isRW && q.passage ? "none" : 640,
             margin: isRW && q.passage ? 0 : "0 auto",
             padding: "28px 32px",
@@ -735,7 +783,7 @@ function toggleEliminated(optionIndex) {
             <button
               onClick={() => onToggleMark(q.id)}
               style={{
-                              fontFamily: TOKENS.serif,
+                            
                 border: "none",
                 background: "none",
                 cursor: "pointer",
