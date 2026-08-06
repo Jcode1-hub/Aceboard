@@ -1078,6 +1078,7 @@ function BreakScreen({ onContinue }) {
  */
 export function PracticeTestSelect({ allQuestions, onSelect, onBack, activeTest, completedTests = [], onResume, onViewResults }) {
   const [tab, setTab] = useState(activeTest ? "active" : "past");
+
   const satQuestions = allQuestions.filter((q) => q.exam === "SAT" && q.practiceTest != null);
 
   const testNumbers = Array.from(new Set(satQuestions.map((q) => q.practiceTest))).sort(
@@ -1105,7 +1106,7 @@ export function PracticeTestSelect({ allQuestions, onSelect, onBack, activeTest,
           timed conditions — just like Bluebook.
         </div>
 
-                <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
           <button
             onClick={() => setTab("active")}
             style={{
@@ -1156,26 +1157,34 @@ export function PracticeTestSelect({ allQuestions, onSelect, onBack, activeTest,
                 </button>
               </div>
             )}
-            {testNumbers.filter(n => n !== activeTest?.practiceTest).map((num) => {
-              const count = countFor(num);
-              const complete = count >= 98;
-              return (
-                <div key={num} style={{ background: "#fff", border: `1px solid ${TOKENS.border}`, borderRadius: 12, padding: 20 }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: TOKENS.navy, marginBottom: 4 }}>
-                    Practice Test {num}
-                  </div>
-                  <div style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 16 }}>
-                    {count} questions {!complete && "(partial)"}
-                  </div>
-                  <button
-                    onClick={() => onSelect(num)}
-                    style={{ background: TOKENS.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", width: "100%" }}
-                  >
-                    Start Test
-                  </button>
-                </div>
-              );
-            })}
+            {testNumbers.length === 0 ? (
+              <div style={{ color: TOKENS.textMuted, fontSize: 14 }}>
+                No full-length practice tests are available yet.
+              </div>
+            ) : (
+              testNumbers
+                .filter((n) => n !== activeTest?.practiceTest)
+                .map((num) => {
+                  const count = countFor(num);
+                  const complete = count >= 98;
+                  return (
+                    <div key={num} style={{ background: "#fff", border: `1px solid ${TOKENS.border}`, borderRadius: 12, padding: 20 }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: TOKENS.navy, marginBottom: 4 }}>
+                        Practice Test {num}
+                      </div>
+                      <div style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 16 }}>
+                        {count} questions {!complete && "(partial)"}
+                      </div>
+                      <button
+                        onClick={() => onSelect(num)}
+                        style={{ background: TOKENS.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", width: "100%" }}
+                      >
+                        Start Test
+                      </button>
+                    </div>
+                  );
+                })
+            )}
           </div>
         )}
 
@@ -1202,44 +1211,17 @@ export function PracticeTestSelect({ allQuestions, onSelect, onBack, activeTest,
             )}
           </div>
         )}
-
-                
-                  <div style={{ fontSize: 16, fontWeight: 700, color: TOKENS.navy, marginBottom: 4 }}>
-                    Practice Test {num}
-                  </div>
-                  <div style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 16 }}>
-                    {count} questions {!complete && "(partial)"}
-                  </div>
-                  <button
-                    onClick={() => onSelect(num)}
-                    style={{
-                      background: TOKENS.blue,
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 8,
-                      padding: "8px 18px",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      cursor: "pointer",
-                      width: "100%",
-                    }}
-                  >
-                    Start Test
-                  </button>
-                </div>
-              );
-            
-          </div>
-        )}
-
-
+      </div>
+    </div>
+  );
+}
 /* ============================ Test Runner ============================ */
 
 /**
  * Sequences all 4 SAT modules using your existing QUESTIONS array.
  * Drop this in wherever you currently render <QuizScreen ... /> when
  * config.exam === "SAT". Requires a `practiceTest` number (from
- * PracticeTestSelect) so it pulls only that specific test's questions —
+ * PracticeTestSelect) so it pu
  * never a merged pool across multiple practice tests.
  *
  * Expects `allQuestions` = your full QUESTIONS array (already imported
