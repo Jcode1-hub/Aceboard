@@ -4557,6 +4557,8 @@ export default function AceBoard() {
   const [quizPool, setQuizPool] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [stats, setStats] = useState({ total: 0, correct: 0 });
+    const [satActiveTest, setSatActiveTest] = useState(null);
+      const [satCompletedTests, setSatCompletedTests] = useState([]);
   const [viewportWidth, setViewportWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 430);
 
   useEffect(() => {
@@ -4587,8 +4589,10 @@ export default function AceBoard() {
           if (snap.exists()) {
             const data = snap.data();
             setProfile(data.profile || null);
+                        setSatCompletedTests(data.satCompletedTests || []);
             setBookmarks(data.bookmarks || []);
             setStats(data.stats || { total: 0, correct: 0 });
+                        setSatActiveTest(data.satActiveTest || null);
             setOnboarded(!!data.profile);
           } else {
             setOnboarded(false);
@@ -4607,13 +4611,13 @@ export default function AceBoard() {
   }, []);
 
   // Persist to Firestore whenever profile/bookmarks/stats change (once signed in)
-  useEffect(() => {
+    useEffect(() => {
     if (!user || !profile) return;
     const ref = doc(db, "users", user.uid);
-    setDoc(ref, { profile, bookmarks, stats, email: user.email, name: user.displayName }, { merge: true }).catch(err => console.error("Save failed:", err));
-  }, [user, profile, bookmarks, stats]);
+        setDoc(ref, { profile, bookmarks, stats, satActiveTest, satCompletedTests, email: user.email, name: user.displayName }, { merge: true }).catch(err => console.error("Save failed:", err));
+  }, [user, profile, bookmarks, stats, satActiveTest, satCompletedTests]);
 
-  const handleSignedIn = (firebaseUser) => {
+    const handleSignedIn = (firebaseUser) => {
     setUser(firebaseUser);
   };
 
@@ -4703,15 +4707,38 @@ export default function AceBoard() {
     <div style={shellStyle}>
       {quizConfig.exam === "SAT" ? (
         <SatTestRunner
+                  onSaveExit={(snapshot) => setSatActiveTest(snapshot)}
                   userName={user?.displayName || "Student"}
           allQuestions={QUESTIONS}
           practiceTest={quizConfig.practiceTest}
+                    resumeState={satActiveTest?.practiceTest === quizConfig.practiceTest ? satActiveTest : null}
           isPracticeTest={quizConfig.mode === "practice"}
-          onFinish={(payload) => {
+                    onFinish={(payload) => {
             const satPool = QUESTIONS.filter(
               q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest
             );
             const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
+
+            const qById = {};
+            pool.forEach(q => { qById[q.id] = q; });
+            const rwAns = ans.filter(a => qById[a.qid]?.subject === "Reading and Writing");
+            const mathAns = ans.filter(a => qById[a.qid]?.subject === "Math");
+            const rwScore = pctToScaledScore(rwAns.length ? (rwAns.filter(a => a.correct).length / rwAns.length) * 100 : 0);
+            const mathScore = pctToScaledScore(mathAns.length ? (mathAns.filter(a => a.correct).length / mathAns.length) * 100 : 0);
+
+            setSatCompletedTests(prev => [
+              ...prev,
+              {
+                practiceTest: quizConfig.practiceTest,
+                completedAt: Date.now(),
+                answers: ans,
+                totalScore: rwScore + mathScore,
+                rwScore,
+                mathScore,
+              },
+            ]);
+            setSatActiveTest(null);
+
             handleFinish(ans, pool, timeInfo);
           }}
           onExit={() => setScreen("home")}
@@ -4768,16 +4795,31 @@ export default function AceBoard() {
       <NotesScreen onBack={() => setScreen("home")} onTestTopic={handleTestTopic} />
     </div>
   );
-  if (screen === "selectSatTest") return (
+    if (screen === "selectSatTest") return (
     <div style={shellStyle}>
       <PracticeTestSelect
         allQuestions={QUESTIONS}
+        activeTest={satActiveTest}
+        completedTests={satCompletedTests}
         onSelect={(practiceTestNumber) => {
           handleBegin({
             exam: "SAT",
             practiceTest: practiceTestNumber,
             mode: "practice",
           });
+        }}
+        onResume={(activeTest) => {
+          setQuizConfig({ exam: "SAT", practiceTest: activeTest.practiceTest, mode: "practice" });
+          setScreen("quiz");
+        }}
+                onViewResults={(t) => {
+          const pool = QUESTIONS.filter(
+            q => q.exam === "SAT" && q.practiceTest === t.practiceTest
+          );
+          setQuizPool(pool);
+          setQuizAnswers(t.answers);
+          setQuizConfig({ exam: "SAT", practiceTest: t.practiceTest, mode: "practice" });
+          setScreen("results");
         }}
         onBack={() => setScreen("home")}
       />

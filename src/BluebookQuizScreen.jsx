@@ -388,6 +388,7 @@ export function BluebookQuizScreen({
   sectionLabel,        // e.g. "Section 1, Module 1: Reading and Writing"
   subject,             // "Reading and Writing" | "Math"
   durationMinutes,     // real Bluebook duration for this module
+    initialSecondsLeft,
   isPracticeTest = true,
   userName,
   answers,             // { [questionId]: answerValue }
@@ -398,7 +399,7 @@ export function BluebookQuizScreen({
   onExit,              // () => void  (back to setup / abandon)
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
+    const [secondsLeft, setSecondsLeft] = useState(initialSecondsLeft ?? durationMinutes * 60);
   const [timerHidden, setTimerHidden] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [showFiveMinWarning, setShowFiveMinWarning] = useState(false);
@@ -629,7 +630,7 @@ useEffect(() => {
         </div>
       ))}
       <div
-        onClick={() => { setMoreMenuOpen(false); onExit(); }}
+        onClick={() => { setMoreMenuOpen(false); onExit(secondsLeft); }}
         style={{ padding: "10px 14px", fontSize: 14, color: TOKENS.blue, fontWeight: 600, cursor: "pointer", borderTop: `1px solid ${TOKENS.border}` }}
       >
         Save & Exit
@@ -1075,7 +1076,8 @@ function BreakScreen({ onContinue }) {
  * screen. Adding Practice Test 5, 6, etc. to QUESTIONS later requires no
  * changes here; the list is fully derived from the data.
  */
-export function PracticeTestSelect({ allQuestions, onSelect, onBack }) {
+export function PracticeTestSelect({ allQuestions, onSelect, onBack, activeTest, completedTests = [], onResume, onViewResults }) {
+  const [tab, setTab] = useState(activeTest ? "active" : "past");
   const satQuestions = allQuestions.filter((q) => q.exam === "SAT" && q.practiceTest != null);
 
   const testNumbers = Array.from(new Set(satQuestions.map((q) => q.practiceTest))).sort(
@@ -1103,25 +1105,105 @@ export function PracticeTestSelect({ allQuestions, onSelect, onBack }) {
           timed conditions — just like Bluebook.
         </div>
 
-        {testNumbers.length === 0 ? (
-          <div style={{ color: TOKENS.textMuted, fontSize: 14 }}>
-            No full-length practice tests are available yet.
-          </div>
-        ) : (
+                <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          <button
+            onClick={() => setTab("active")}
+            style={{
+              background: tab === "active" ? TOKENS.navy : "#fff",
+              color: tab === "active" ? "#fff" : TOKENS.navy,
+              border: `1px solid ${TOKENS.border}`,
+              borderRadius: 20,
+              padding: "6px 16px",
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            {activeTest ? "✓ " : ""}Active
+          </button>
+          <button
+            onClick={() => setTab("past")}
+            style={{
+              background: tab === "past" ? TOKENS.navy : "#fff",
+              color: tab === "past" ? "#fff" : TOKENS.navy,
+              border: `1px solid ${TOKENS.border}`,
+              borderRadius: 20,
+              padding: "6px 16px",
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            Past
+          </button>
+        </div>
+
+        {tab === "active" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
-            {testNumbers.map((num) => {
-              const count = countFor(num);
-              const complete = count >= 98; // full test is ~98-100 scored questions across 4 modules
-              return (
-                <div
-                  key={num}
-                  style={{
-                    background: "#fff",
-                    border: `1px solid ${TOKENS.border}`,
-                    borderRadius: 12,
-                    padding: 20,
-                  }}
+            {activeTest && (
+              <div style={{ background: "#EEF2FF", border: `1px solid ${TOKENS.border}`, borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: TOKENS.navy, marginBottom: 4 }}>
+                  SAT Practice {activeTest.practiceTest}
+                </div>
+                <div style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 16 }}>
+                  ⏱ In Progress
+                </div>
+                <button
+                  onClick={() => onResume(activeTest)}
+                  style={{ background: TOKENS.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", width: "100%" }}
                 >
+                  Resume
+                </button>
+              </div>
+            )}
+            {testNumbers.filter(n => n !== activeTest?.practiceTest).map((num) => {
+              const count = countFor(num);
+              const complete = count >= 98;
+              return (
+                <div key={num} style={{ background: "#fff", border: `1px solid ${TOKENS.border}`, borderRadius: 12, padding: 20 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: TOKENS.navy, marginBottom: 4 }}>
+                    Practice Test {num}
+                  </div>
+                  <div style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 16 }}>
+                    {count} questions {!complete && "(partial)"}
+                  </div>
+                  <button
+                    onClick={() => onSelect(num)}
+                    style={{ background: TOKENS.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", width: "100%" }}
+                  >
+                    Start Test
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === "past" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+            {completedTests.length === 0 ? (
+              <div style={{ color: TOKENS.textMuted, fontSize: 14 }}>No completed tests yet.</div>
+            ) : (
+              completedTests.slice().reverse().map((t, i) => (
+                <div key={i} style={{ background: "#fff", border: `1px solid ${TOKENS.border}`, borderRadius: 12, padding: 20 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: TOKENS.navy, marginBottom: 4 }}>
+                    SAT Practice {t.practiceTest}
+                  </div>
+                  <div style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 4 }}>✓ Completed</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: TOKENS.navy, marginBottom: 16 }}>{t.totalScore}</div>
+                  <button
+                    onClick={() => onViewResults(t)}
+                    style={{ background: "none", color: TOKENS.blue, border: `1px solid ${TOKENS.blue}`, borderRadius: 8, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", width: "100%" }}
+                  >
+                    View My Responses
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+                
                   <div style={{ fontSize: 16, fontWeight: 700, color: TOKENS.navy, marginBottom: 4 }}>
                     Practice Test {num}
                   </div>
@@ -1146,13 +1228,10 @@ export function PracticeTestSelect({ allQuestions, onSelect, onBack }) {
                   </button>
                 </div>
               );
-            })}
+            
           </div>
         )}
-      </div>
-    </div>
-  );
-}
+
 
 /* ============================ Test Runner ============================ */
 
@@ -1166,7 +1245,7 @@ export function PracticeTestSelect({ allQuestions, onSelect, onBack }) {
  * Expects `allQuestions` = your full QUESTIONS array (already imported
  * in App.jsx).
  */
-export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = true, userName, onFinish, onExit }) {
+export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = true, userName, onFinish, onExit, onSaveExit, resumeState }) {
   const MODULE_SEQUENCE = [
     { subject: "Reading and Writing", module: "Module 1", label: "Section 1, Module 1: Reading and Writing" },
     { subject: "Reading and Writing", module: "Module 2", label: "Section 1, Module 2: Reading and Writing" },
@@ -1174,11 +1253,16 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
     { subject: "Math", module: "Module 2", label: "Section 2, Module 2: Math" },
   ];
 
-  const [stepIndex, setStepIndex] = useState(0); // index into MODULE_SEQUENCE
-  const [phase, setPhase] = useState("directions"); // "directions" | "quiz" | "break"
-  const [allAnswers, setAllAnswers] = useState({}); // { [moduleKey]: { [qId]: answer } }
-  const [allMarked, setAllMarked] = useState({}); // { [moduleKey]: Set }
-  const [results, setResults] = useState([]); // per-module summary
+    const [stepIndex, setStepIndex] = useState(resumeState?.stepIndex ?? 0);
+  const [phase, setPhase] = useState(resumeState?.phase ?? "directions");
+  const [allAnswers, setAllAnswers] = useState(resumeState?.allAnswers ?? {});
+  const [allMarked, setAllMarked] = useState(() => {
+    if (!resumeState?.allMarked) return {};
+    return Object.fromEntries(
+      Object.entries(resumeState.allMarked).map(([k, v]) => [k, new Set(v)])
+    );
+  });
+  const [results, setResults] = useState([]);
 
   const step = MODULE_SEQUENCE[stepIndex];
   const moduleKey = `${step.subject}-${step.module}`;
@@ -1251,7 +1335,21 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
     setStepIndex((i) => i + 1);
     setPhase(goingToMath ? "break" : "directions");
   }
-
+  function handleSaveAndExit(secondsLeft) {
+    const snapshot = {
+      practiceTest,
+      stepIndex,
+      phase,
+      secondsLeft: secondsLeft ?? durationMinutes * 60,
+      allAnswers,
+      allMarked: Object.fromEntries(
+        Object.entries(allMarked).map(([k, v]) => [k, [...v]])
+      ),
+      savedAt: Date.now(),
+    };
+    onSaveExit(snapshot);
+    onExit();
+  }
   if (moduleQuestions.length === 0) {
     return (
       <div style={{ fontFamily: TOKENS.font, padding: 40, textAlign: "center", color: TOKENS.textMuted }}>
@@ -1277,6 +1375,7 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
         sectionLabel={step.label}
         subject={step.subject}
         durationMinutes={durationMinutes}
+              initialSecondsLeft={resumeState && stepIndex === resumeState.stepIndex ? resumeState.secondsLeft : undefined}
         onStart={() => setPhase("quiz")}
       />
     );
@@ -1295,7 +1394,7 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
       marked={marked}
       onToggleMark={toggleMark}
       onModuleComplete={handleModuleComplete}
-      onExit={onExit}
+            onExit={handleSaveAndExit}
     />
   );
 }
