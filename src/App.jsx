@@ -4315,34 +4315,8 @@ function AboutScreen({ user, onSignOut }) {
           </div>
         </div>
 
-        <div style={S.card}>
-          <p style={{ ...S.label, marginBottom: 12 }}>Tech Stack</p>
-          <div style={S.gap(8)}>
-            {["React (Frontend)", "Firebase Firestore (Database)", "Firebase Auth (Google Sign-in)", "Node.js + Express (Backend)", "Vercel (Hosting)"].map(t => (
-              <div key={t} style={{ ...S.row(10) }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#3B82F6", flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: "#94A3B8" }}>{t}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={S.card}>
-          <p style={{ ...S.label, marginBottom: 12 }}>About the Builder</p>
-          <div style={S.gap(10)}>
-            {[
-              { label: "Get to know more about Judah", url: "https://judahkayode.netlify.app", icon: "external" },
-            ].map(({ label, url, icon }) => (
-              <a key={label} href={url} target="_blank" rel="noopener noreferrer" style={{ ...S.row(10), textDecoration: "none", padding: "12px 14px", backgroundColor: "#111827", borderRadius: 12, border: "1px solid #1E2A4A" }}>
-                <span style={{ fontSize: 14, color: "#F0F2FF", fontWeight: 600, flex: 1 }}>{label}</span>
-                <Icon name={icon} size={16} color="#3B82F6" />
-              </a>
-            ))}
-          </div>
-        </div>
-
         <div style={{ textAlign: "center", padding: "12px 0 4px" }}>
-          <p style={{ fontSize: 12, color: "#1E2A4A" }}>AceBoard © 2025 · Judah Kayode · judahkayode.netlify.app</p>
+          <p style={{ fontSize: 12, color: "#1E2A4A" }}>AceBoard © 2026</p>
         </div>
       </div>
     </div>
