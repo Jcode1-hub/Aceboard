@@ -4369,119 +4369,79 @@ function SignInScreen({ onSignedIn }) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minHeight: "100vh", padding: "24px", background: "#0B1220" }}>
-      <style>{`
-        @keyframes splashDraw {
-          0% { stroke-dashoffset: 60; opacity: 0; }
-          40% { opacity: 1; }
-          100% { stroke-dashoffset: 0; opacity: 1; }
-        }
-        @keyframes splashDot {
-          0% { offset-distance: 0%; }
-          100% { offset-distance: 100%; }
-        }
-        @keyframes splashFade {
-          0% { opacity: 0; transform: translateY(8px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        .splash-line {
-          stroke-dasharray: 60;
-          animation: splashDraw 900ms ease-out forwards;
-        }
-        .splash-dot {
-          offset-path: path("M4,20 H76");
-          animation: splashDot 1100ms ease-in-out forwards;
-        }
-        .splash-word {
-          animation: splashFade 500ms ease-out 700ms forwards;
-          opacity: 0;
-        }
-      `}</style>
-
-      <div style={{ textAlign: "center", marginBottom: 40 }}>
-        <svg width="80" height="40" viewBox="0 0 80 40" style={{ display: "block", margin: "0 auto 16px" }}>
-          <path className="splash-line" d="M4,20 H76" stroke="#3B82F6" strokeWidth="2" fill="none" strokeLinecap="round" />
-          <circle className="splash-dot" r="6" fill="#3B82F6" />
-        </svg>
-        <div className="splash-word" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: "#F0F2FF" }}>
-          Ace<span style={{ color: "#3B82F6" }}>Board</span>
+    <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minHeight: "100vh", padding: "32px 24px", background: "#fff" }}>
+      <div style={{ textAlign: "left", marginBottom: 32 }}>
+        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#0B1220", lineHeight: 1.2 }}>
+          Study Smarter,<br />Not Harder
         </div>
-        <p style={{ fontSize: 13, marginTop: 8, color: "#94A3B8" }}>
-          {mode === "signup" ? "Create an account to get started" : "Sign in to save your progress, streaks, and bookmarks"}
+        <p style={{ fontSize: 14, marginTop: 10, color: "#64748B" }}>
+          Study with the #1 exam prep app, and get linked to colleges that match you.
         </p>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 24, background: "#111A2E", borderRadius: 10, padding: 4 }}>
-        <button
-          onClick={() => { setMode("signin"); setError(null); }}
-          style={{
-            flex: 1, padding: "10px 0", borderRadius: 8, border: "none",
-            background: mode === "signin" ? "#3B82F6" : "transparent",
-            color: mode === "signin" ? "#fff" : "#94A3B8",
-            fontWeight: 700, fontSize: 14, cursor: "pointer",
-          }}
-        >
-          Log In
-        </button>
-        <button
-          onClick={() => { setMode("signup"); setError(null); }}
-          style={{
-            flex: 1, padding: "10px 0", borderRadius: 8, border: "none",
-            background: mode === "signup" ? "#3B82F6" : "transparent",
-            color: mode === "signup" ? "#fff" : "#94A3B8",
-            fontWeight: 700, fontSize: 14, cursor: "pointer",
-          }}
-        >
-          Create Account
-        </button>
-      </div>
+      <button
+        onClick={() => { setMode("signup"); setError(null); }}
+        style={{
+          background: "#3B82F6", color: "#fff", border: "none", borderRadius: 100,
+          padding: "16px 0", fontWeight: 700, fontSize: 15, cursor: "pointer", marginBottom: 12,
+        }}
+      >
+        Create Account
+      </button>
+      <button
+        onClick={() => { setMode("signin"); setError(null); }}
+        style={{
+          background: "#fff", color: "#0B1220", border: "1.5px solid #0B1220", borderRadius: 100,
+          padding: "16px 0", fontWeight: 700, fontSize: 15, cursor: "pointer", marginBottom: 24,
+        }}
+      >
+        Log In
+      </button>
 
-      <form onSubmit={handleEmailSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={{
-            background: "#111A2E", border: "1px solid #1E2A4A", borderRadius: 10,
-            padding: "14px 16px", fontSize: 15, color: "#F0F2FF", outline: "none",
-          }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-          style={{
-            background: "#111A2E", border: "1px solid #1E2A4A", borderRadius: 10,
-            padding: "14px 16px", fontSize: 15, color: "#F0F2FF", outline: "none",
-          }}
-        />
+      {(mode === "signin" || mode === "signup") && (
+        <form onSubmit={handleEmailSubmit} style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={{
+              background: "#F5F7FA", border: "1px solid #E2E8F0", borderRadius: 10,
+              padding: "14px 16px", fontSize: 15, color: "#0B1220", outline: "none",
+            }}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            style={{
+              background: "#F5F7FA", border: "1px solid #E2E8F0", borderRadius: 10,
+              padding: "14px 16px", fontSize: 15, color: "#0B1220", outline: "none",
+            }}
+          />
+          {error && <p style={{ color: "#DC2626", fontSize: 13, textAlign: "center" }}>{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              background: "#0B1220", color: "#fff", border: "none", borderRadius: 10,
+              padding: "14px 0", fontWeight: 700, fontSize: 14, cursor: "pointer",
+              opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? "Please wait…" : mode === "signup" ? "Sign up with Email" : "Log in with Email"}
+          </button>
+        </form>
+      )}
 
-        {error && (
-          <p style={{ color: "#F87171", fontSize: 13, textAlign: "center" }}>{error}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            background: "#3B82F6", color: "#fff", border: "none", borderRadius: 10,
-            padding: "14px 0", fontWeight: 700, fontSize: 15, cursor: "pointer",
-            opacity: loading ? 0.6 : 1, marginTop: 4,
-          }}
-        >
-          {loading ? "Please wait…" : mode === "signup" ? "Create Account" : "Log In"}
-        </button>
-      </form>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "24px 0" }}>
-        <div style={{ flex: 1, height: 1, background: "#1E2A4A" }} />
-        <span style={{ fontSize: 12, color: "#64748B" }}>or continue with</span>
-        <div style={{ flex: 1, height: 1, background: "#1E2A4A" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0 20px" }}>
+        <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+        <span style={{ fontSize: 12, color: "#94A3B8" }}>or continue with</span>
+        <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
       </div>
 
       <button
@@ -4489,12 +4449,17 @@ function SignInScreen({ onSignedIn }) {
         disabled={loading}
         style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-          background: "#F0F2FF", color: "#0B1220", border: "none", borderRadius: 10,
-          padding: "14px 0", fontWeight: 700, fontSize: 15, cursor: "pointer",
+          background: "#fff", color: "#0B1220", border: "1.5px solid #E2E8F0", borderRadius: 100,
+          padding: "14px 0", fontWeight: 600, fontSize: 15, cursor: "pointer",
           opacity: loading ? 0.6 : 1,
         }}
       >
-        <Icon name="google" size={18} />
+        <svg width="18" height="18" viewBox="0 0 18 18">
+          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/>
+          <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/>
+          <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/>
+        </svg>
         Continue with Google
       </button>
     </div>
