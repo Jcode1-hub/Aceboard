@@ -4466,12 +4466,64 @@ function SignInScreen({ onSignedIn }) {
   );
 }
 // ── SPLASH SCREEN ─────────────────────────────────────────────────────────────
-function SplashScreen() {
+function SplashScreen({ onDone }) {
+  useEffect(() => {
+    const t = setTimeout(() => onDone && onDone(), 2400);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: "#080D1E" }}>
-      <img src="/icon.png" style={{ width: 100, height: 100, marginBottom: 16, borderRadius: 22 }} alt="AceBoard" />
-      <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#F0F2FF" }}>Ace<span style={{ color: "#3B82F6" }}>Board</span></div>
-      <p style={{ fontSize: 13, marginTop: 6, color: "#94A3B8" }}>Built for students, everywhere</p>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0B1220" }}>
+      <style>{`
+        @keyframes aDraw {
+          0% { stroke-dashoffset: 240; opacity: 0; }
+          15% { opacity: 1; }
+          100% { stroke-dashoffset: 0; opacity: 1; }
+        }
+        @keyframes aFill {
+          0% { opacity: 0; transform: scale(0.92); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes wordReveal {
+          0% { clip-path: inset(0 100% 0 0); }
+          100% { clip-path: inset(0 0% 0 0); }
+        }
+        .a-layer-1 { animation: aDraw 500ms ease-out 0ms forwards; }
+        .a-layer-2 { animation: aDraw 500ms ease-out 180ms forwards; }
+        .a-layer-3 { animation: aDraw 500ms ease-out 360ms forwards; }
+        .a-fill { animation: aFill 400ms ease-out 780ms forwards; opacity: 0; }
+        .word-reveal { animation: wordReveal 600ms cubic-bezier(0.65, 0, 0.35, 1) 1150ms forwards; clip-path: inset(0 100% 0 0); }
+      `}</style>
+
+      <svg width="88" height="88" viewBox="0 0 88 88" style={{ marginBottom: 18 }}>
+        <path
+          className="a-layer-1"
+          d="M44 14 L70 70 L58 70 L52 56 L36 56 L30 70 L18 70 Z"
+          fill="none" stroke="#1E3A6E" strokeWidth="3" strokeLinejoin="round"
+          strokeDasharray="240" transform="translate(-4,-4)"
+        />
+        <path
+          className="a-layer-2"
+          d="M44 14 L70 70 L58 70 L52 56 L36 56 L30 70 L18 70 Z"
+          fill="none" stroke="#2C5AA6" strokeWidth="3" strokeLinejoin="round"
+          strokeDasharray="240" transform="translate(-2,-2)"
+        />
+        <path
+          className="a-layer-3"
+          d="M44 14 L70 70 L58 70 L52 56 L36 56 L30 70 L18 70 Z"
+          fill="none" stroke="#3B82F6" strokeWidth="3" strokeLinejoin="round"
+          strokeDasharray="240"
+        />
+        <path
+          className="a-fill"
+          d="M44 14 L70 70 L58 70 L52 56 L36 56 L30 70 L18 70 Z"
+          fill="#3B82F6"
+        />
+      </svg>
+
+      <div className="word-reveal" style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#F0F2FF" }}>
+        Ace<span style={{ color: "#3B82F6" }}>Board</span>
+      </div>
     </div>
   );
 }
