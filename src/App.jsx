@@ -4672,14 +4672,12 @@ export default function AceBoard() {
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
 const [minSplashDone, setMinSplashDone] = useState(false);
 useEffect(() => {
   const t = setTimeout(() => setMinSplashDone(true), 2600);
   return () => clearTimeout(t);
 }, []);
 const [onboarded, setOnboarded] = useState(false);
-  const [onboarded, setOnboarded] = useState(false);
   const [profile, setProfile] = useState(null);
   const [tab, setTab] = useState("home");
   const [screen, setScreen] = useState("home"); useEffect(() => {
