@@ -4482,52 +4482,52 @@ function SplashScreen({ onDone }) {
       }}
     >
       <style>{`
-        @keyframes logoIn {
-          0% { opacity: 0; transform: scale(0.82); }
-          55% { opacity: 1; transform: scale(1.06); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-        @keyframes glowPulse {
-          0%, 100% { filter: drop-shadow(0 0 0px rgba(59,130,246,0)); }
-          50% { filter: drop-shadow(0 0 22px rgba(59,130,246,0.55)); }
-        }
-        @keyframes shineSweep {
-          0% { transform: translateX(-120%) skewX(-20deg); opacity: 0; }
-          10% { opacity: 0.9; }
-          60% { opacity: 0.9; }
-          100% { transform: translateX(220%) skewX(-20deg); opacity: 0; }
-        }
-        @keyframes wordUp {
-          0% { opacity: 0; transform: translateY(14px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes tagUp {
-          0% { opacity: 0; transform: translateY(10px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        .as-logo-wrap {
-          position: relative; width: 96px; height: 96px; border-radius: 22px; overflow: hidden;
-          animation: logoIn 900ms cubic-bezier(0.22, 1, 0.36, 1) 0ms forwards,
-                     glowPulse 1600ms ease-in-out 900ms 1;
-          opacity: 0;
-        }
-        .as-logo-img { width: 100%; height: 100%; display: block; object-fit: contain; }
-        .as-shine {
-          position: absolute; top: 0; left: 0; width: 40%; height: 100%;
-          background: linear-gradient(75deg, transparent, rgba(255,255,255,0.55), transparent);
-          animation: shineSweep 900ms ease-in-out 950ms 1;
-          pointer-events: none;
-        }
-        .as-word {
-          margin-top: 20px; font-size: 30px; font-weight: 800; letter-spacing: -0.02em;
-          color: #F0F4FF; opacity: 0;
-          animation: wordUp 500ms ease-out 1250ms forwards;
-        }
-        .as-tag {
-          margin-top: 6px; font-size: 13px; color: #7C8AA5; opacity: 0;
-          animation: tagUp 500ms ease-out 1550ms forwards;
-        }
-      `}</style>
+  @keyframes logoIn {
+    0% { opacity: 0; transform: scale(0.82); }
+    55% { opacity: 1; transform: scale(1.06); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes glowPulse {
+    0%, 100% { filter: drop-shadow(0 0 0px rgba(59,130,246,0)); }
+    50% { filter: drop-shadow(0 0 22px rgba(59,130,246,0.55)); }
+  }
+  @keyframes shineSweep {
+    0% { transform: translateX(-120%) skewX(-20deg); opacity: 0; }
+    10% { opacity: 0.9; }
+    60% { opacity: 0.9; }
+    100% { transform: translateX(220%) skewX(-20deg); opacity: 0; }
+  }
+  @keyframes wordUp {
+    0% { opacity: 0; transform: translateY(14px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes tagUp {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .as-logo-wrap {
+    position: relative; width: 96px; height: 96px; border-radius: 22px; overflow: hidden;
+    animation: logoIn 700ms cubic-bezier(0.22, 1, 0.36, 1) 0ms forwards,
+               glowPulse 1600ms ease-in-out 650ms 1;
+    opacity: 0;
+  }
+  .as-logo-img { width: 100%; height: 100%; display: block; object-fit: contain; }
+  .as-shine {
+    position: absolute; top: 0; left: 0; width: 40%; height: 100%;
+    background: linear-gradient(75deg, transparent, rgba(255,255,255,0.55), transparent);
+    animation: shineSweep 800ms ease-in-out 500ms 1;
+    pointer-events: none;
+  }
+  .as-word {
+    margin-top: 20px; font-size: 30px; font-weight: 800; letter-spacing: -0.02em;
+    color: #F0F4FF; opacity: 0;
+    animation: wordUp 500ms ease-out 1100ms forwards;
+  }
+  .as-tag {
+    margin-top: 6px; font-size: 13px; color: #7C8AA5; opacity: 0;
+    animation: tagUp 500ms ease-out 1400ms forwards;
+  }
+`}</style>
 
       <div className="as-logo-wrap">
         <img src="/icon.png" alt="AceBoard" className="as-logo-img" />
@@ -4672,6 +4672,13 @@ export default function AceBoard() {
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+const [minSplashDone, setMinSplashDone] = useState(false);
+useEffect(() => {
+  const t = setTimeout(() => setMinSplashDone(true), 2600);
+  return () => clearTimeout(t);
+}, []);
+const [onboarded, setOnboarded] = useState(false);
   const [onboarded, setOnboarded] = useState(false);
   const [profile, setProfile] = useState(null);
   const [tab, setTab] = useState("home");
@@ -4809,7 +4816,7 @@ export default function AceBoard() {
     setQuizConfig(null);
   };
 
-  if (booting || !authChecked) return <SplashScreen />;
+  if (booting || !authChecked || !minSplashDone) return <SplashScreen />;
   if (!user) return (
     <div style={shellStyle}>
       <SignInScreen onSignedIn={handleSignedIn} />
