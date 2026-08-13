@@ -4466,64 +4466,76 @@ function SignInScreen({ onSignedIn }) {
   );
 }
 // ── SPLASH SCREEN ─────────────────────────────────────────────────────────────
+// — SPLASH SCREEN —
 function SplashScreen({ onDone }) {
   useEffect(() => {
-    const t = setTimeout(() => onDone && onDone(), 2400);
+    const t = setTimeout(() => onDone && onDone(), 2600);
     return () => clearTimeout(t);
   }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0B1220" }}>
+    <div
+      onClick={() => onDone && onDone()}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        minHeight: "100vh", background: "#0B0F1A", cursor: "pointer"
+      }}
+    >
       <style>{`
-        @keyframes aDraw {
-          0% { stroke-dashoffset: 240; opacity: 0; }
-          15% { opacity: 1; }
-          100% { stroke-dashoffset: 0; opacity: 1; }
-        }
-        @keyframes aFill {
-          0% { opacity: 0; transform: scale(0.92); }
+        @keyframes logoIn {
+          0% { opacity: 0; transform: scale(0.82); }
+          55% { opacity: 1; transform: scale(1.06); }
           100% { opacity: 1; transform: scale(1); }
         }
-        @keyframes wordReveal {
-          0% { clip-path: inset(0 100% 0 0); }
-          100% { clip-path: inset(0 0% 0 0); }
+        @keyframes glowPulse {
+          0%, 100% { filter: drop-shadow(0 0 0px rgba(59,130,246,0)); }
+          50% { filter: drop-shadow(0 0 22px rgba(59,130,246,0.55)); }
         }
-        .a-layer-1 { animation: aDraw 500ms ease-out 0ms forwards; }
-        .a-layer-2 { animation: aDraw 500ms ease-out 180ms forwards; }
-        .a-layer-3 { animation: aDraw 500ms ease-out 360ms forwards; }
-        .a-fill { animation: aFill 400ms ease-out 780ms forwards; opacity: 0; }
-        .word-reveal { animation: wordReveal 600ms cubic-bezier(0.65, 0, 0.35, 1) 1150ms forwards; clip-path: inset(0 100% 0 0); }
+        @keyframes shineSweep {
+          0% { transform: translateX(-120%) skewX(-20deg); opacity: 0; }
+          10% { opacity: 0.9; }
+          60% { opacity: 0.9; }
+          100% { transform: translateX(220%) skewX(-20deg); opacity: 0; }
+        }
+        @keyframes wordUp {
+          0% { opacity: 0; transform: translateY(14px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes tagUp {
+          0% { opacity: 0; transform: translateY(10px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        .as-logo-wrap {
+          position: relative; width: 96px; height: 96px; border-radius: 22px; overflow: hidden;
+          animation: logoIn 900ms cubic-bezier(0.22, 1, 0.36, 1) 0ms forwards,
+                     glowPulse 1600ms ease-in-out 900ms 1;
+          opacity: 0;
+        }
+        .as-logo-img { width: 100%; height: 100%; display: block; object-fit: contain; }
+        .as-shine {
+          position: absolute; top: 0; left: 0; width: 40%; height: 100%;
+          background: linear-gradient(75deg, transparent, rgba(255,255,255,0.55), transparent);
+          animation: shineSweep 900ms ease-in-out 950ms 1;
+          pointer-events: none;
+        }
+        .as-word {
+          margin-top: 20px; font-size: 30px; font-weight: 800; letter-spacing: -0.02em;
+          color: #F0F4FF; opacity: 0;
+          animation: wordUp 500ms ease-out 1250ms forwards;
+        }
+        .as-tag {
+          margin-top: 6px; font-size: 13px; color: #7C8AA5; opacity: 0;
+          animation: tagUp 500ms ease-out 1550ms forwards;
+        }
       `}</style>
 
-      <svg width="88" height="88" viewBox="0 0 88 88" style={{ marginBottom: 18 }}>
-        <path
-          className="a-layer-1"
-          d="M44 14 L70 70 L58 70 L52 56 L36 56 L30 70 L18 70 Z"
-          fill="none" stroke="#1E3A6E" strokeWidth="3" strokeLinejoin="round"
-          strokeDasharray="240" transform="translate(-4,-4)"
-        />
-        <path
-          className="a-layer-2"
-          d="M44 14 L70 70 L58 70 L52 56 L36 56 L30 70 L18 70 Z"
-          fill="none" stroke="#2C5AA6" strokeWidth="3" strokeLinejoin="round"
-          strokeDasharray="240" transform="translate(-2,-2)"
-        />
-        <path
-          className="a-layer-3"
-          d="M44 14 L70 70 L58 70 L52 56 L36 56 L30 70 L18 70 Z"
-          fill="none" stroke="#3B82F6" strokeWidth="3" strokeLinejoin="round"
-          strokeDasharray="240"
-        />
-        <path
-          className="a-fill"
-          d="M44 14 L70 70 L58 70 L52 56 L36 56 L30 70 L18 70 Z"
-          fill="#3B82F6"
-        />
-      </svg>
-
-      <div className="word-reveal" style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#F0F2FF" }}>
-        Ace<span style={{ color: "#3B82F6" }}>Board</span>
+      <div className="as-logo-wrap">
+        <img src="/icon.png" alt="AceBoard" className="as-logo-img" />
+        <div className="as-shine" />
       </div>
+
+      <div className="as-word">Ace<span style={{ color: "#3B82F6" }}>Board</span></div>
+      <div className="as-tag">Built for students, everywhere.</div>
     </div>
   );
 }
