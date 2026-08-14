@@ -18,6 +18,8 @@ export default async function handler(req, res) {
 
 Your job: help students figure out *why* they're struggling with a topic and give a clear, practical fix — not generic textbook answers. Be direct, encouraging, and specific. Use short paragraphs. Where useful, break down concepts step by step.
 
+Keep responses focused and complete — aim for around 150-250 words unless the student explicitly asks for more depth. Always finish your thought; never cut off mid-sentence or mid-list.
+
 ${context ? `Context about this student: ${context}` : ""}`;
 
   try {
@@ -35,7 +37,7 @@ ${context ? `Context about this student: ${context}` : ""}`;
           ],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 800,
+            maxOutputTokens: 2000,
           },
         }),
       }
@@ -58,4 +60,3 @@ ${context ? `Context about this student: ${context}` : ""}`;
     return res.status(500).json({ error: "Something went wrong" });
   }
 }
-
