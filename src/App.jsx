@@ -2367,7 +2367,7 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
     setAiTutorLoading(true);
     setAiTutorReply("");
     try {
-      const resp = await fetch("https://us-central1-ace-board-41d96.cloudfunctions.net/aiStudyCoach", {
+      const resp = await fetch("/api/aceai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2376,9 +2376,9 @@ function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
       });
       if (!resp.ok) throw new Error();
       const data = await resp.json();
-      setAiTutorReply(data.text || "Sorry, I couldn't process that.");
+      setAiTutorReply(data.reply || "Sorry, I couldn't process that.");
     } catch {
-      setAiTutorReply("The AI Tutor is being connected to a secure backend right now — full functionality is coming very soon!");
+      setAiTutorReply("Something went wrong reaching AceAi — check your connection and try again.");
     } finally {
       setAiTutorLoading(false);
     }
@@ -3932,15 +3932,24 @@ function AIHub({ onBack }) {
   const tools = [
     { id: "planner", emoji: "📅", title: "Study Planner", desc: "Enter your exam, date & subjects — get a full weekly schedule automatically.", color: "#3B82F6" },
     { id: "flashcards", emoji: "🃏", title: "AI Flashcards", desc: "Paste any notes or text — instantly turn them into tap-to-flip flashcards.", color: "#8B5CF6" },
-    { id: "coach", emoji: "🤖", title: "Study Coach", desc: "Tell the coach what you're struggling with — get a personalized strategy.", color: "#10B981" },
+    { id: "coach", emoji: "🤖", title: "AceAi", desc: "Tell the coach what you're struggling with — get a personalized strategy.", color: "#10B981" },
   ];
 
   return (
     <div style={{ ...S.screen, overflowY: "auto" }}>
+      <style>{`
+        @keyframes aiIconShine {
+          0% { transform: translateX(-120%) skewX(-20deg); opacity: 0; }
+          8% { opacity: 0.85; }
+          22% { opacity: 0.85; }
+          32% { transform: translateX(220%) skewX(-20deg); opacity: 0; }
+          100% { transform: translateX(220%) skewX(-20deg); opacity: 0; }
+        }
+      `}</style>
       <div style={S.header}>
         <div>
           <div style={S.h1}>AI Tools</div>
-          <div style={S.small}>Powered by Claude AI</div>
+          <div style={S.small}>Powered by AceAi</div>
         </div>
       </div>
       <div style={{ padding: "0 20px 32px", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -3949,10 +3958,22 @@ function AIHub({ onBack }) {
             AceBoard's AI features are designed specifically for students writing WAEC, JAMB, SAT, IGCSE and more. Pick a tool below to get started.
           </div>
         </div>
-        {tools.map(t => (
+        {tools.map((t, i) => (
           <button key={t.id} onClick={() => setScreen(t.id)}
             style={{ ...S.card, display: "flex", gap: 16, alignItems: "flex-start", cursor: "pointer", textAlign: "left", border: "1.5px solid #1E2A4A" }}>
-            <div style={{ fontSize: 36, flexShrink: 0 }}>{t.emoji}</div>
+            <div style={{
+              position: "relative", width: 52, height: 52, borderRadius: 14, flexShrink: 0,
+              backgroundColor: `${t.color}1A`, border: `1.5px solid ${t.color}44`,
+              display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+            }}>
+              <span style={{ fontSize: 26, zIndex: 1 }}>{t.emoji}</span>
+              <div style={{
+                position: "absolute", top: 0, left: 0, width: "45%", height: "100%",
+                background: "linear-gradient(75deg, transparent, rgba(255,255,255,0.55), transparent)",
+                animation: `aiIconShine 3400ms ease-in-out ${i * 500}ms infinite`,
+                pointerEvents: "none",
+              }} />
+            </div>
             <div>
               <div style={{ fontSize: 17, fontWeight: 700, color: t.color, marginBottom: 4 }}>{t.title}</div>
               <div style={{ fontSize: 13, color: "#94A3B8", lineHeight: 1.5 }}>{t.desc}</div>
@@ -3987,7 +4008,7 @@ function AIStudyPlanner({ onBack }) {
       const today = new Date();
       const target = new Date(examDate);
       const daysLeft = Math.max(1, Math.ceil((target - today) / (1000 * 60 * 60 * 24)));
-      const resp = await fetch("https://us-central1-ace-board-41d96.cloudfunctions.net/aiStudyCoach", {
+      const resp = await fetch("/api/aceai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3996,10 +4017,10 @@ function AIStudyPlanner({ onBack }) {
       });
       if (!resp.ok) throw new Error();
       const data = await resp.json();
-      setPlan(data.text || "Could not generate plan. Try again.");
+      setPlan(data.reply || "Could not generate plan. Try again.");
       setStep("result");
     } catch {
-      setPlan("The planner is being set up — check back soon!");
+      setPlan("Something went wrong generating your plan — check your connection and try again.");
       setStep("result");
     }
   };
@@ -4132,7 +4153,7 @@ function AIFlashcards({ onBack }) {
     if (!inputText.trim() || inputText.length < 20) return;
     setLoading(true);
     try {
-      const resp = await fetch("https://us-central1-ace-board-41d96.cloudfunctions.net/aiStudyCoach", {
+      const resp = await fetch("/api/aceai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -4141,7 +4162,7 @@ function AIFlashcards({ onBack }) {
       });
       if (!resp.ok) throw new Error();
       const data = await resp.json();
-      const raw = data.text || "[]";
+      const raw = data.reply || "[]";
       const clean = raw.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -4151,7 +4172,7 @@ function AIFlashcards({ onBack }) {
         setStep("studying");
       } else throw new Error("Bad format");
     } catch {
-      setCards([{ q: "Flashcard generation is coming soon!", a: "The AI backend is being configured. Paste your notes and try again shortly." }]);
+      setCards([{ q: "Something went wrong generating flashcards.", a: "Check your connection and try again — or try shorter notes." }]);
       setCardIdx(0);
       setFlipped(false);
       setStep("studying");
@@ -4234,7 +4255,7 @@ function AIFlashcards({ onBack }) {
 
 function AIStudyCoach({ onBack }) {
   const [messages, setMessages] = useState([
-    { role: "assistant", text: "Hi! I'm your AceBoard study coach. Tell me what subject or topic you're struggling with, and I'll help you figure out why — and how to fix it." }
+    { role: "assistant", text: "Hi! I'm AceAi, your AceBoard study coach. Tell me what subject or topic you're struggling with, and I'll help you figure out why — and how to fix it." }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -4246,19 +4267,17 @@ function AIStudyCoach({ onBack }) {
     setMessages((m) => [...m, { role: "user", text: userMsg }]);
     setLoading(true);
     try {
-      // Calls a Firebase Cloud Function that securely holds the Anthropic API key server-side.
-      // Replace the URL below with your deployed function URL after running `firebase deploy --only functions`.
-      const resp = await fetch("https://us-central1-ace-board-41d96.cloudfunctions.net/aiStudyCoach", {
+      const resp = await fetch("/api/aceai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg })
       });
       if (!resp.ok) throw new Error("Coach unavailable");
       const data = await resp.json();
-      const text = data.text || "Sorry, I couldn't process that. Try again?";
+      const text = data.reply || "Sorry, I couldn't process that. Try again?";
       setMessages((m) => [...m, { role: "assistant", text }]);
     } catch (err) {
-      setMessages((m) => [...m, { role: "assistant", text: "The AI Coach is being connected to a secure backend right now — full functionality is coming very soon! In the meantime, check out Practice Mode for instant explanations on every question." }]);
+      setMessages((m) => [...m, { role: "assistant", text: "Something went wrong reaching AceAi — check your connection and try again." }]);
     } finally {
       setLoading(false);
     }
@@ -4271,7 +4290,7 @@ function AIStudyCoach({ onBack }) {
           <Icon name="arrow_left" size={20} color="#fff" />
         </button>
         <div>
-          <div style={S.h1}>AI Study Coach</div>
+          <div style={S.h1}>AceAi</div>
           <div style={S.small}>Personalized help, not generic answers</div>
         </div>
       </div>
