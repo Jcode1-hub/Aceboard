@@ -3986,20 +3986,74 @@ function AIHub({ onBack }) {
 }
 
 // ── AI STUDY PLANNER ──────────────────────────────────────────────────────────
+const PLANNER_SUBJECTS_BY_EXAM = {
+  WAEC: ["English Language", "Mathematics", "Biology", "Chemistry", "Physics", "Economics", "Government", "Literature in English", "Geography", "Commerce", "Financial Accounting", "Agricultural Science", "Civic Education", "CRS/IRS"],
+  NECO: ["English Language", "Mathematics", "Biology", "Chemistry", "Physics", "Economics", "Government", "Literature in English", "Geography", "Commerce", "Financial Accounting", "Agricultural Science", "Civic Education", "CRS/IRS"],
+  GCE: ["English Language", "Mathematics", "Biology", "Chemistry", "Physics", "Economics", "Government", "Literature in English", "Geography", "Commerce", "Financial Accounting", "Agricultural Science", "Civic Education", "CRS/IRS"],
+  JAMB: ["English Language", "Mathematics", "Biology", "Chemistry", "Physics", "Economics", "Government", "Literature in English", "Geography", "Commerce", "Accounting", "CRS"],
+  IGCSE: ["English Language", "English Literature", "Mathematics", "Additional Mathematics", "Physics", "Chemistry", "Biology", "Combined Science", "Economics", "Business Studies", "Accounting", "Geography", "History", "Computer Science", "ICT", "French", "Spanish", "Art & Design", "Religious Studies", "Sociology", "Environmental Management"],
+  SAT: ["Reading and Writing", "Math"],
+  ACT: ["English", "Math", "Reading", "Science"],
+  IELTS: ["Listening", "Reading", "Writing", "Speaking"],
+};
+
 function AIStudyPlanner({ onBack }) {
-  const [step, setStep] = useState("form"); // form | loading | result
+  const [step, setStep] = useState("form"); // form | loading | result | history
   const [exam, setExam] = useState("WAEC");
   const [examDate, setExamDate] = useState("");
-  const [subjects, setSubjects] = useState("");
+  const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [hoursPerDay, setHoursPerDay] = useState("3");
   const [plan, setPlan] = useState("");
   const [error, setError] = useState("");
+  const [savedPlans, setSavedPlans] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
   const exams = ["WAEC", "JAMB", "NECO", "GCE", "IGCSE", "SAT", "ACT", "IELTS"];
+  const availableSubjects = PLANNER_SUBJECTS_BY_EXAM[exam] || [];
+
+  const toggleSubject = (subj) => {
+    setSelectedSubjects(prev => prev.includes(subj) ? prev.filter(s => s !== subj) : [...prev, subj]);
+  };
+
+  const changeExam = (e) => {
+    setExam(e);
+    setSelectedSubjects([]); // reset subject picks when exam changes since options differ
+  };
+
+  // Load saved plan history for this user
+  useEffect(() => {
+    const load = async () => {
+      if (!auth.currentUser) { setLoadingHistory(false); return; }
+      try {
+        const ref = doc(db, "users", auth.currentUser.uid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          setSavedPlans(snap.data().studyPlans || []);
+        }
+      } catch (err) {
+        console.error("Failed to load saved plans:", err);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+    load();
+  }, []);
+
+  const persistPlan = async (entry) => {
+    if (!auth.currentUser) return;
+    try {
+      const ref = doc(db, "users", auth.currentUser.uid);
+      const next = [entry, ...savedPlans].slice(0, 20); // cap history at 20
+      await setDoc(ref, { studyPlans: next }, { merge: true });
+      setSavedPlans(next);
+    } catch (err) {
+      console.error("Failed to save plan:", err);
+    }
+  };
 
   const generatePlan = async () => {
-    if (!examDate || !subjects.trim()) {
-      setError("Please fill in your exam date and subjects.");
+    if (!examDate || selectedSubjects.length === 0) {
+      setError("Please pick your exam date and at least one subject.");
       return;
     }
     setError("");
@@ -4008,21 +4062,38 @@ function AIStudyPlanner({ onBack }) {
       const today = new Date();
       const target = new Date(examDate);
       const daysLeft = Math.max(1, Math.ceil((target - today) / (1000 * 60 * 60 * 24)));
+      const subjectsStr = selectedSubjects.join(", ");
       const resp = await fetch("/api/aceai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: `Create a detailed ${daysLeft}-day study plan for a student preparing for ${exam}. Subjects: ${subjects}. Available study time: ${hoursPerDay} hours per day. Format as a weekly schedule (Week 1, Week 2, etc.) showing which subjects to study each day with approximate time allocation. Include a tip for each week. Keep it practical, specific, and encouraging. Max 300 words.`
+          message: `Create a detailed ${daysLeft}-day study plan for a student preparing for ${exam}. Subjects: ${subjectsStr}. Available study time: ${hoursPerDay} hours per day. Format as a weekly schedule (Week 1, Week 2, etc.) showing which subjects to study each day with approximate time allocation. Include a tip for each week. Keep it practical, specific, and encouraging. Max 300 words.`
         })
       });
       if (!resp.ok) throw new Error();
       const data = await resp.json();
-      setPlan(data.reply || "Could not generate plan. Try again.");
+      const generatedPlan = data.reply || "Could not generate plan. Try again.";
+      setPlan(generatedPlan);
       setStep("result");
+      persistPlan({
+        id: Date.now().toString(),
+        exam,
+        examDate,
+        subjects: subjectsStr,
+        hoursPerDay,
+        plan: generatedPlan,
+        createdAt: new Date().toISOString(),
+      });
     } catch {
       setPlan("Something went wrong generating your plan — check your connection and try again.");
       setStep("result");
     }
+  };
+
+  const viewSavedPlan = (entry) => {
+    setExam(entry.exam);
+    setPlan(entry.plan);
+    setStep("result");
   };
 
   return (
@@ -4031,10 +4102,15 @@ function AIStudyPlanner({ onBack }) {
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <Icon name="arrow_left" size={20} color="#fff" />
         </button>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={S.h1}>AI Study Planner</div>
           <div style={S.small}>Your personalized exam schedule</div>
         </div>
+        {step === "form" && savedPlans.length > 0 && (
+          <button onClick={() => setStep("history")} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", fontSize: 13, fontWeight: 700 }}>
+            History ({savedPlans.length})
+          </button>
+        )}
       </div>
 
       <div style={{ padding: "0 20px 32px", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -4043,7 +4119,7 @@ function AIStudyPlanner({ onBack }) {
             <div style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6", marginBottom: 8, letterSpacing: "0.08em" }}>SELECT EXAM</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {exams.map(e => (
-                <button key={e} onClick={() => setExam(e)}
+                <button key={e} onClick={() => changeExam(e)}
                   style={{
                     padding: "6px 14px", borderRadius: 20, border: "1.5px solid", fontSize: 13, fontWeight: 600, cursor: "pointer",
                     backgroundColor: exam === e ? "#3B82F6" : "transparent",
@@ -4063,10 +4139,24 @@ function AIStudyPlanner({ onBack }) {
           </div>
 
           <div style={S.card}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6", marginBottom: 8, letterSpacing: "0.08em" }}>SUBJECTS</div>
-            <input value={subjects} onChange={e => setSubjects(e.target.value)}
-              placeholder="e.g. Maths, Physics, Chemistry, English"
-              style={{ width: "100%", backgroundColor: "#0D1326", border: "1px solid #1E2A4A", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6", marginBottom: 8, letterSpacing: "0.08em" }}>
+              SUBJECTS {selectedSubjects.length > 0 && `(${selectedSubjects.length} selected)`}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {availableSubjects.map(subj => (
+                <button key={subj} onClick={() => toggleSubject(subj)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "8px 12px", borderRadius: 10, border: "1.5px solid", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    backgroundColor: selectedSubjects.includes(subj) ? "#1E3A5F" : "transparent",
+                    borderColor: selectedSubjects.includes(subj) ? "#3B82F6" : "#1E2A4A",
+                    color: selectedSubjects.includes(subj) ? "#fff" : "#94A3B8"
+                  }}>
+                  {selectedSubjects.includes(subj) && <Icon name="check" size={12} color="#3B82F6" />}
+                  {subj}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div style={S.card}>
@@ -4103,9 +4193,34 @@ function AIStudyPlanner({ onBack }) {
 
         {step === "result" && (<>
           <div style={{ ...S.card, whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.7, color: "#E2E8F0" }}>{plan}</div>
-          <button onClick={() => { setStep("form"); setPlan(""); }}
+          <button onClick={() => { setStep("form"); setPlan(""); setSelectedSubjects([]); setExamDate(""); }}
             style={{ backgroundColor: "transparent", border: "1.5px solid #3B82F6", borderRadius: 14, padding: "14px", color: "#3B82F6", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
             Generate New Plan
+          </button>
+        </>)}
+
+        {step === "history" && (<>
+          {loadingHistory ? (
+            <div style={{ textAlign: "center", padding: 40, color: "#94A3B8" }}>Loading...</div>
+          ) : savedPlans.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: "#94A3B8" }}>No saved plans yet.</div>
+          ) : (
+            savedPlans.map(entry => (
+              <button key={entry.id} onClick={() => viewSavedPlan(entry)}
+                style={{ ...S.card, textAlign: "left", cursor: "pointer", border: "1.5px solid #1E2A4A" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>{entry.exam}</span>
+                  <span style={{ fontSize: 11, color: "#64748B" }}>
+                    {new Date(entry.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: "#94A3B8" }}>{entry.subjects}</div>
+              </button>
+            ))
+          )}
+          <button onClick={() => setStep("form")}
+            style={{ backgroundColor: "transparent", border: "1.5px solid #1E2A4A", borderRadius: 12, padding: "12px", color: "#94A3B8", fontSize: 14, cursor: "pointer" }}>
+            ← Back to Planner
           </button>
         </>)}
       </div>
