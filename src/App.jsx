@@ -1803,6 +1803,100 @@ function getLast7Days(dailyActivity) {
   return out;
 }
 
+// ── TARGET / READINESS HELPERS ──────────────────────────────────────────────────
+// Converts a per-subject target (a grade, a score band, a slider value) into an
+// "expected accuracy %" so it can be compared against real practice performance.
+const WAEC_GRADE_TO_ACCURACY = { A1: 90, B2: 85, B3: 80, C4: 75, C5: 70, C6: 65, D7: 55, E8: 45, F9: 30 };
+const IGCSE_GRADE_TO_ACCURACY = { "A*": 90, A: 85, B: 75, C: 65, D: 55, E: 45, F: 35, G: 25 };
+
+function targetToExpectedAccuracy(exam, subject, targets) {
+  const t = targets?.[exam];
+  if (!t) return null;
+  if (["WAEC", "NECO", "GCE"].includes(exam)) {
+    const grade = t.grades?.[subject];
+    return grade ? WAEC_GRADE_TO_ACCURACY[grade] ?? null : null;
+  }
+  if (exam === "IGCSE") {
+    const grade = t.grades?.[subject];
+    return grade ? IGCSE_GRADE_TO_ACCURACY[grade] ?? null : null;
+  }
+  if (exam === "JAMB") {
+    const band = t.scores?.[subject];
+    return band ?? null; // JAMB is scored /100, band (e.g. 90+) maps roughly 1:1 to accuracy%
+  }
+  if (exam === "SAT") {
+    if (subject === "Reading and Writing" && t.rw) return Math.round(((t.rw - 200) / 600) * 100);
+    if (subject === "Math" && t.math) return Math.round(((t.math - 200) / 600) * 100);
+    return null;
+  }
+  if (exam === "ACT" && t.composite) return Math.round((t.composite / 36) * 100);
+  if (exam === "IELTS") {
+    const bandKey = subject.toLowerCase();
+    const val = t[bandKey];
+    return val ? Math.round((val / 9) * 100) : null;
+  }
+  return null;
+}
+
+// Recency-weighted accuracy: most recent attempts count more than older ones.
+// Weight = position from oldest(1) to newest(n); weighted% = sum(weight*correct)/sum(weight).
+function weightedAccuracy(log) {
+  if (!log || log.length === 0) return null;
+  let weightedSum = 0, weightTotal = 0;
+  log.forEach((correct, i) => {
+    const weight = i + 1; // linear recency weighting
+    weightedSum += weight * (correct ? 1 : 0);
+    weightTotal += weight;
+  });
+  return Math.round((weightedSum / weightTotal) * 100);
+}
+
+function getSubjectAccuracy(subjectStats, exam, subject) {
+  const key = `${exam}::${subject}`;
+  return weightedAccuracy(subjectStats?.[key]?.log);
+}
+
+// Builds a per-subject readiness breakdown for one exam: target, current
+// (recency-weighted) accuracy, gap, and how "ready" the student is (capped 100%).
+function getExamReadiness(exam, targets, subjectStats) {
+  const t = targets?.[exam];
+  if (!t) return null;
+  const subjects = t.subjects || (exam === "SAT" ? ["Reading and Writing", "Math"] : exam === "IELTS" ? ["Listening", "Reading", "Writing", "Speaking"] : exam === "ACT" ? ["Composite"] : []);
+  const rows = subjects.map(subject => {
+    const expected = exam === "ACT" ? Math.round(((t.composite || 20) / 36) * 100) : targetToExpectedAccuracy(exam, subject, targets);
+    const current = exam === "ACT" ? null : getSubjectAccuracy(subjectStats, exam, subject);
+    const readiness = expected && current != null ? Math.min(100, Math.round((current / expected) * 100)) : null;
+    const gap = expected && current != null ? Math.max(0, expected - current) : null;
+    return { subject, expected, current, readiness, gap };
+  });
+  const validReadiness = rows.filter(r => r.readiness != null).map(r => r.readiness);
+  const overallReadiness = validReadiness.length > 0 ? Math.round(validReadiness.reduce((a, b) => a + b, 0) / validReadiness.length) : null;
+  return { rows, overallReadiness };
+}
+
+// Short headline label for a target card, e.g. "320+" for JAMB, "1400" for SAT.
+function examTargetHeadline(exam, targets) {
+  const t = targets?.[exam];
+  if (!t) return null;
+  if (exam === "JAMB") {
+    const scores = t.scores || {};
+    const total = (scores["English Language"] || 0) + (t.subjects || []).reduce((a, s) => a + (scores[s] || 0), 0);
+    return total > 0 ? `${total}` : null;
+  }
+  if (exam === "SAT") return t.rw && t.math ? `${t.rw + t.math}` : null;
+  if (exam === "ACT") return t.composite ? `${t.composite}` : null;
+  if (exam === "IELTS") {
+    const vals = [t.listening, t.reading, t.writing, t.speaking].filter(v => v != null);
+    if (vals.length === 0) return null;
+    return `${Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 2) / 2}`;
+  }
+  if (["WAEC", "NECO", "GCE", "IGCSE"].includes(exam)) {
+    const count = (t.subjects || []).length;
+    return count > 0 ? `${count} subjects` : null;
+  }
+  return null;
+}
+
 // ── HEATMAP DATA (GitHub-style contribution graph) ──────────────────────────────
 // Builds real cells from the user's actual dailyActivity map. No randomness.
 function buildHeatmapCells(dailyActivity, weeksBack = 52) {
@@ -1867,7 +1961,7 @@ function ExamLogo({ exam, size = 40 }) {
 }
 
 // ── HOME SCREEN ───────────────────────────────────────────────────────────────
-function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dailyActivity }) {
+function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dailyActivity, subjectStats }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modalContent, setModalContent] = useState(null); // "news" | "faq" | null
   const [newsItems, setNewsItems] = useState([]);
@@ -2032,6 +2126,45 @@ function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dai
             })}
           </div>
         </div>
+
+        {/* Target cards — per exam readiness + gap-to-target, from onboarding targets */}
+        {profile?.targets && (profile?.exams || []).some(e => examTargetHeadline(e, profile.targets)) && (
+          <div>
+            <p style={{ ...S.label, marginBottom: 12 }}>Your Targets</p>
+            <div style={S.gap(10)}>
+              {(profile.exams || []).map(exam => {
+                const headline = examTargetHeadline(exam, profile.targets);
+                if (!headline) return null;
+                const readinessData = getExamReadiness(exam, profile.targets, subjectStats);
+                const overall = readinessData?.overallReadiness;
+                const hasData = overall != null;
+                return (
+                  <div key={exam} style={{ ...S.card, display: "flex", alignItems: "center", gap: 14 }}>
+                    <ExamLogo exam={exam} size={40} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#F0F2FF" }}>{exam} Target</span>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: "#3B82F6" }}>{headline}</span>
+                      </div>
+                      {hasData ? (
+                        <>
+                          <div style={{ height: 6, borderRadius: 3, backgroundColor: "#1E2A4A", marginTop: 8, overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${overall}%`, backgroundColor: overall >= 90 ? "#22C55E" : overall >= 60 ? "#3B82F6" : "#F97316", transition: "width 400ms ease" }} />
+                          </div>
+                          <p style={{ fontSize: 11, color: "#7C8AA5", marginTop: 6 }}>
+                            {overall >= 100 ? "You're hitting your target! 🎯" : `${overall}% of the way to your target — keep going.`}
+                          </p>
+                        </>
+                      ) : (
+                        <p style={{ fontSize: 11, color: "#7C8AA5", marginTop: 6 }}>Practice a few questions to see your readiness.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Quick start */}
         <div>
@@ -3243,7 +3376,7 @@ function ContributionHeatmap({ dailyActivity }) {
 }
 
 
-function AnalyticsScreen({ stats, allHistory, profile, dailyActivity }) {
+function AnalyticsScreen({ stats, allHistory, profile, dailyActivity, subjectStats }) {
   const pct = stats.total ? Math.round((stats.correct / stats.total) * 100) : 0;
   const hasActivity = stats.total > 0;
   const streak = computeStreak(dailyActivity);
@@ -3325,27 +3458,63 @@ function AnalyticsScreen({ stats, allHistory, profile, dailyActivity }) {
           )}
         </div>
 
-        {/* Target */}
-        <div style={{ ...S.card, background: "linear-gradient(135deg, #1E3A5F 0%, #0D1326 100%)" }}>
-          <div style={S.row(10)}>
-            <div style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "#0A1628", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Icon name="trophy" size={22} color="#3B82F6" />
-            </div>
-            <div>
-              <div style={S.h3}>Target: {profile?.targetGrade || "Set a goal"} 🎯</div>
-              <div style={S.small}>{hasActivity ? "Keep your accuracy climbing toward your goal" : "Start practicing to track progress toward your target"}</div>
-            </div>
+        {/* Exam Readiness — real per-subject breakdown vs onboarding targets */}
+        {profile?.targets && (profile?.exams || []).some(e => profile.targets[e]) && (
+          <div style={S.gap(14)}>
+            <p style={S.label}>Exam Readiness</p>
+            {(profile.exams || []).map(exam => {
+              const t = profile.targets[exam];
+              if (!t) return null;
+              const readinessData = getExamReadiness(exam, profile.targets, subjectStats);
+              if (!readinessData) return null;
+              const { rows, overallReadiness } = readinessData;
+              return (
+                <div key={exam} style={S.card}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                    <ExamLogo exam={exam} size={36} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>{exam}</div>
+                      <div style={S.small}>{examTargetHeadline(exam, profile.targets) || "Target set"}</div>
+                    </div>
+                    {overallReadiness != null && (
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: overallReadiness >= 90 ? "#22C55E" : overallReadiness >= 60 ? "#3B82F6" : "#F97316" }}>
+                          {overallReadiness}%
+                        </div>
+                        <div style={{ fontSize: 10, color: "#7C8AA5" }}>ready</div>
+                      </div>
+                    )}
+                  </div>
+                  {exam === "ACT" ? (
+                    <p style={{ fontSize: 12, color: "#7C8AA5" }}>Answer some ACT practice questions to see your readiness.</p>
+                  ) : (
+                    <div style={S.gap(10)}>
+                      {rows.map(row => (
+                        <div key={row.subject}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span style={{ fontSize: 12, color: "#E2E8F0", fontWeight: 600 }}>{row.subject}</span>
+                            <span style={{ fontSize: 11, color: "#7C8AA5" }}>
+                              {row.current != null ? `${row.current}% now` : "no data yet"}
+                              {row.gap != null && row.gap > 0 && ` · ${row.gap}% to go`}
+                            </span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 3, backgroundColor: "#1E2A4A", overflow: "hidden" }}>
+                            <div style={{
+                              height: "100%",
+                              width: `${row.readiness ?? 0}%`,
+                              backgroundColor: (row.readiness ?? 0) >= 90 ? "#22C55E" : (row.readiness ?? 0) >= 60 ? "#3B82F6" : "#F97316",
+                              transition: "width 400ms ease",
+                            }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={S.small}>Overall progress</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#3B82F6" }}>{pct}%</span>
-            </div>
-            <div style={S.progressBar(pct)}>
-              <div style={S.progressFill(pct)} />
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -4733,35 +4902,138 @@ function SplashScreen({ onDone }) {
 }
 
 // ── ONBOARDING SCREEN ─────────────────────────────────────────────────────────
-const TARGET_GRADES = {
-  WAEC: ["A1 (Excellent)", "B2-B3 (Very Good)", "C4-C6 (Credit)"],
-  NECO: ["A1 (Excellent)", "B2-B3 (Very Good)", "C4-C6 (Credit)"],
-  GCE: ["A1 (Excellent)", "B2-B3 (Very Good)", "C4-C6 (Credit)"],
-  JAMB: ["320+ (Elite)", "280-319 (Strong)", "200-279 (Competitive)"],
-  IGCSE: ["9 (Top grade)", "7-8 (Strong)", "5-6 (Pass with credit)"],
-  SAT: ["1500+ (Elite)", "1350-1499 (Strong)", "1200-1349 (Competitive)"],
-  ACT: ["33+ (Elite)", "28-32 (Strong)", "22-27 (Competitive)"],
-  IELTS: ["Band 8-9 (Expert)", "Band 7 (Good)", "Band 6 (Competent)"],
-};
+const WAEC_SUBJECTS = ["English Language","Mathematics","Biology","Chemistry","Physics","Economics","Government","Literature in English","Geography","Commerce","Financial Accounting","Agricultural Science","Civic Education","CRS/IRS"];
+const IGCSE_SUBJECTS = ["English Language","English Literature","Mathematics","Additional Mathematics","Physics","Chemistry","Biology","Combined Science","Economics","Business Studies","Accounting","Geography","History","Computer Science","ICT","French","Spanish","Art & Design","Religious Studies","Sociology","Environmental Management"];
+const JAMB_SUBJECTS = ["Mathematics","Biology","Chemistry","Physics","Economics","Government","Literature in English","Geography","Commerce","Accounting","CRS"];
+const GRADE_SCALE = ["A1","B2","B3","C4","C5","C6","D7","E8","F9"];
+const IGCSE_GRADE_SCALE = ["A*","A","B","C","D","E","F","G"];
+const JAMB_BANDS = [90, 80, 70, 60, 50, 40];
+
+const WAEC_STYLE_EXAMS = ["WAEC", "NECO", "GCE"];
+
+function gradeFeedback(grade, scale) {
+  if (scale === "igcse") {
+    if (["A*", "A"].includes(grade)) return { text: "Excellent choice!", emoji: "😄", color: "#22C55E" };
+    if (["B", "C"].includes(grade)) return { text: "Good — aim a bit higher?", emoji: "🙂", color: "#FACC15" };
+    return { text: "Aim higher!", emoji: "😬", color: "#F87171" };
+  }
+  if (["A1", "B2", "B3"].includes(grade)) return { text: "Excellent choice!", emoji: "😄", color: "#22C55E" };
+  if (["C4", "C5", "C6"].includes(grade)) return { text: "Good — aim a bit higher?", emoji: "🙂", color: "#FACC15" };
+  return { text: "Aim higher!", emoji: "😬", color: "#F87171" };
+}
+
+function GradeMascot({ feedback }) {
+  if (!feedback) return null;
+  return (
+    <div key={feedback.subject + feedback.text} style={{
+      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+      padding: "10px 16px", borderRadius: 14, backgroundColor: "#111827",
+      border: `1.5px solid ${feedback.color}`,
+      animation: "mascotIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
+    }}>
+      <style>{`
+        @keyframes mascotIn {
+          0% { opacity: 0; transform: translateY(10px) scale(0.85); }
+          60% { opacity: 1; transform: translateY(-3px) scale(1.05); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes mascotBounce {
+          0%, 100% { transform: translateY(0) rotate(0deg); }
+          25% { transform: translateY(-4px) rotate(-6deg); }
+          75% { transform: translateY(-2px) rotate(6deg); }
+        }
+      `}</style>
+      <span style={{ fontSize: 26, animation: "mascotBounce 700ms ease-in-out 400ms 2" }}>{feedback.emoji}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: feedback.color }}>
+        {feedback.subject}: {feedback.text}
+      </span>
+    </div>
+  );
+}
 
 function OnboardingScreen({ onComplete }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [selectedExams, setSelectedExams] = useState([]);
-  const [targetGrade, setTargetGrade] = useState(null);
+  const [examTargets, setExamTargets] = useState({});
+  const [feedback, setFeedback] = useState(null);
 
   const toggleExam = (exam) => {
     setSelectedExams(prev => prev.includes(exam) ? prev.filter(e => e !== exam) : [...prev, exam]);
   };
 
-  const primaryExam = selectedExams[0];
-  const gradeOptions = primaryExam ? TARGET_GRADES[primaryExam] || [] : [];
+  const examSteps = selectedExams;
+  const totalSteps = 2 + examSteps.length + 1;
+  const currentExam = step >= 2 && step < 2 + examSteps.length ? examSteps[step - 2] : null;
 
-  const canContinue = step === 0 ? true : step === 1 ? selectedExams.length > 0 : step === 2 ? !!targetGrade : true;
+  const getTarget = (exam) => examTargets[exam] || {};
+  const setTarget = (exam, patch) => {
+    setExamTargets(prev => ({ ...prev, [exam]: { ...prev[exam], ...patch } }));
+  };
+
+  const toggleSubject = (exam, subject) => {
+    const t = getTarget(exam);
+    const subjects = t.subjects || [];
+    const next = subjects.includes(subject) ? subjects.filter(s => s !== subject) : [...subjects, subject];
+    setTarget(exam, { subjects: next });
+  };
+
+  const pickGrade = (exam, subject, grade, scale) => {
+    const t = getTarget(exam);
+    setTarget(exam, { grades: { ...(t.grades || {}), [subject]: grade } });
+    setFeedback({ subject, ...gradeFeedback(grade, scale) });
+    setTimeout(() => setFeedback(null), 1600);
+  };
+
+  const jambTotal = (exam) => {
+    const t = getTarget(exam);
+    const scores = t.scores || {};
+    return Object.values(scores).reduce((a, b) => a + (b || 0), 0);
+  };
+
+  const satTotal = (exam) => {
+    const t = getTarget(exam);
+    return (t.rw || 200) + (t.math || 200);
+  };
+
+  const ieltsAvg = (exam) => {
+    const t = getTarget(exam);
+    const vals = [t.listening, t.reading, t.writing, t.speaking].filter(v => v != null);
+    if (vals.length === 0) return 0;
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return Math.round(avg * 2) / 2;
+  };
+
+  const canContinue = () => {
+    if (step === 0) return true;
+    if (step === 1) return selectedExams.length > 0;
+    if (currentExam) {
+      const t = getTarget(currentExam);
+      if (WAEC_STYLE_EXAMS.includes(currentExam)) {
+        const subs = t.subjects || [];
+        const grades = t.grades || {};
+        return subs.length > 0 && subs.every(s => grades[s]);
+      }
+      if (currentExam === "IGCSE") {
+        const subs = t.subjects || [];
+        const grades = t.grades || {};
+        return subs.length > 0 && subs.every(s => grades[s]);
+      }
+      if (currentExam === "JAMB") {
+        const scores = t.scores || {};
+        return (t.subjects || []).length === 3 && Object.keys(scores).length === 3;
+      }
+      if (currentExam === "SAT") return !!t.rw && !!t.math;
+      if (currentExam === "ACT") return !!t.composite;
+      if (currentExam === "IELTS") return !!t.listening && !!t.reading && !!t.writing && !!t.speaking;
+      return true;
+    }
+    return true;
+  };
 
   const next = () => {
-    if (step < 2) setStep(step + 1);
-    else onComplete({ name: name.trim() || "Student", exams: selectedExams, targetGrade });
+    if (step < totalSteps - 1) setStep(step + 1);
+    else onComplete({ name: name.trim() || "Student", exams: selectedExams, targets: examTargets });
   };
 
   return (
@@ -4769,8 +5041,17 @@ function OnboardingScreen({ onComplete }) {
       <div style={S.header}>
         <div style={S.logo}>Ace<span style={S.logoAccent}>Board</span></div>
         <div style={{ display: "flex", gap: 6, marginTop: 20 }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= step ? "#3B82F6" : "#1E2A4A" }} />
+          {Array.from({ length: totalSteps }).map((_, i) => (
+            <div
+              key={i}
+              style={{
+                flex: i === step ? 3 : 1,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: i <= step ? "#3B82F6" : "#1E2A4A",
+                transition: "flex 300ms ease",
+              }}
+            />
           ))}
         </div>
       </div>
@@ -4779,7 +5060,7 @@ function OnboardingScreen({ onComplete }) {
         {step === 0 && (
           <>
             <div>
-              <p style={S.label}>Step 1 of 3</p>
+              <p style={S.label}>Step 1 of {totalSteps}</p>
               <h1 style={{ ...S.h1, marginTop: 8 }}>What's your name?</h1>
               <p style={{ ...S.body, marginTop: 6 }}>We'll use this to personalize your experience.</p>
             </div>
@@ -4795,7 +5076,7 @@ function OnboardingScreen({ onComplete }) {
         {step === 1 && (
           <>
             <div>
-              <p style={S.label}>Step 2 of 3</p>
+              <p style={S.label}>Step 2 of {totalSteps}</p>
               <h1 style={{ ...S.h1, marginTop: 8 }}>Which exams are<br />you taking?</h1>
               <p style={{ ...S.body, marginTop: 6 }}>Select all that apply — you can change this later.</p>
             </div>
@@ -4823,36 +5104,374 @@ function OnboardingScreen({ onComplete }) {
           </>
         )}
 
-        {step === 2 && (
+        {WAEC_STYLE_EXAMS.includes(currentExam) && (() => {
+          const t = getTarget(currentExam);
+          const subjects = t.subjects || [];
+          const grades = t.grades || {};
+          const phase = subjects.length === 0 ? "subjects" : "grades";
+          return (
+            <>
+              <div>
+                <p style={S.label}>Step {step + 1} of {totalSteps}</p>
+                <h1 style={{ ...S.h1, marginTop: 8 }}>
+                  {phase === "subjects" ? `Which ${currentExam} subjects?` : `Set your target grades`}
+                </h1>
+                <p style={{ ...S.body, marginTop: 6 }}>
+                  {phase === "subjects" ? "Pick every subject you're sitting." : `Tap a grade for each subject — A1 is highest, F9 is lowest.`}
+                </p>
+              </div>
+
+              {phase === "subjects" && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+                  {WAEC_SUBJECTS.map(subj => (
+                    <button
+                      key={subj}
+                      onClick={() => toggleSubject(currentExam, subj)}
+                      style={{
+                        ...S.cardAlt, cursor: "pointer", textAlign: "left", padding: 14,
+                        border: `1.5px solid ${subjects.includes(subj) ? "#3B82F6" : "#1E2A4A"}`,
+                        backgroundColor: subjects.includes(subj) ? "#1E3A5F" : "#111827",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF" }}>{subj}</span>
+                        {subjects.includes(subj) && <Icon name="check" size={14} color="#3B82F6" />}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {phase === "grades" && (
+                <div style={S.gap(16)}>
+                  <GradeMascot feedback={feedback} />
+                  {subjects.map(subj => (
+                    <div key={subj}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF", marginBottom: 8 }}>{subj}</p>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {GRADE_SCALE.map(g => (
+                          <button
+                            key={g}
+                            onClick={() => pickGrade(currentExam, subj, g, "waec")}
+                            style={{
+                              padding: "8px 12px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                              border: `1.5px solid ${grades[subj] === g ? "#3B82F6" : "#1E2A4A"}`,
+                              backgroundColor: grades[subj] === g ? "#1E3A5F" : "#111827",
+                              color: "#F0F2FF",
+                            }}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setTarget(currentExam, { subjects: [] })}
+                    style={{ background: "none", border: "none", color: "#7C8AA5", fontSize: 12, textAlign: "left", cursor: "pointer" }}
+                  >
+                    ← Edit subject list
+                  </button>
+                </div>
+              )}
+            </>
+          );
+        })()}
+
+        {currentExam === "IGCSE" && (() => {
+          const t = getTarget("IGCSE");
+          const subjects = t.subjects || [];
+          const grades = t.grades || {};
+          const phase = subjects.length === 0 ? "subjects" : "grades";
+          return (
+            <>
+              <div>
+                <p style={S.label}>Step {step + 1} of {totalSteps}</p>
+                <h1 style={{ ...S.h1, marginTop: 8 }}>
+                  {phase === "subjects" ? "Which IGCSE subjects?" : "Set your target grades"}
+                </h1>
+                <p style={{ ...S.body, marginTop: 6 }}>
+                  {phase === "subjects" ? "Pick every subject you're sitting." : "Tap a grade for each subject — A* is highest, G is lowest."}
+                </p>
+              </div>
+
+              {phase === "subjects" && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+                  {IGCSE_SUBJECTS.map(subj => (
+                    <button
+                      key={subj}
+                      onClick={() => toggleSubject("IGCSE", subj)}
+                      style={{
+                        ...S.cardAlt, cursor: "pointer", textAlign: "left", padding: 14,
+                        border: `1.5px solid ${subjects.includes(subj) ? "#3B82F6" : "#1E2A4A"}`,
+                        backgroundColor: subjects.includes(subj) ? "#1E3A5F" : "#111827",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF" }}>{subj}</span>
+                        {subjects.includes(subj) && <Icon name="check" size={14} color="#3B82F6" />}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {phase === "grades" && (
+                <div style={S.gap(16)}>
+                  <GradeMascot feedback={feedback} />
+                  {subjects.map(subj => (
+                    <div key={subj}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF", marginBottom: 8 }}>{subj}</p>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {IGCSE_GRADE_SCALE.map(g => (
+                          <button
+                            key={g}
+                            onClick={() => pickGrade("IGCSE", subj, g, "igcse")}
+                            style={{
+                              padding: "8px 12px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                              border: `1.5px solid ${grades[subj] === g ? "#3B82F6" : "#1E2A4A"}`,
+                              backgroundColor: grades[subj] === g ? "#1E3A5F" : "#111827",
+                              color: "#F0F2FF",
+                            }}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setTarget("IGCSE", { subjects: [] })}
+                    style={{ background: "none", border: "none", color: "#7C8AA5", fontSize: 12, textAlign: "left", cursor: "pointer" }}
+                  >
+                    ← Edit subject list
+                  </button>
+                </div>
+              )}
+            </>
+          );
+        })()}
+
+        {currentExam === "JAMB" && (() => {
+          const t = getTarget("JAMB");
+          const extras = t.subjects || [];
+          const scores = t.scores || {};
+          const pickExtra = (subj) => {
+            let next = extras.includes(subj) ? extras.filter(s => s !== subj) : [...extras, subj];
+            if (next.length > 3) next = next.slice(1);
+            setTarget("JAMB", { subjects: next });
+          };
+          return (
+            <>
+              <div>
+                <p style={S.label}>Step {step + 1} of {totalSteps}</p>
+                <h1 style={{ ...S.h1, marginTop: 8 }}>JAMB targets</h1>
+                <p style={{ ...S.body, marginTop: 6 }}>English is compulsory — pick 3 more subjects, then set your target score for each.</p>
+              </div>
+
+              <div style={S.gap(10)}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF" }}>Subjects (pick 3, plus English)</p>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {JAMB_SUBJECTS.map(subj => (
+                    <button
+                      key={subj}
+                      onClick={() => pickExtra(subj)}
+                      style={{
+                        padding: "8px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                        border: `1.5px solid ${extras.includes(subj) ? "#3B82F6" : "#1E2A4A"}`,
+                        backgroundColor: extras.includes(subj) ? "#1E3A5F" : "#111827",
+                        color: "#F0F2FF",
+                      }}
+                    >
+                      {subj}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {["English Language", ...extras].map(subj => (
+                <div key={subj}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF", marginBottom: 8 }}>{subj}</p>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {JAMB_BANDS.map(band => (
+                      <button
+                        key={band}
+                        onClick={() => setTarget("JAMB", { scores: { ...scores, [subj]: band } })}
+                        style={{
+                          padding: "8px 12px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                          border: `1.5px solid ${scores[subj] === band ? "#3B82F6" : "#1E2A4A"}`,
+                          backgroundColor: scores[subj] === band ? "#1E3A5F" : "#111827",
+                          color: "#F0F2FF",
+                        }}
+                      >
+                        {band}+
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <div style={{ textAlign: "center", padding: "16px 0", borderTop: "1px solid #1E2A4A" }}>
+                <p style={{ fontSize: 12, color: "#7C8AA5" }}>Target total</p>
+                <p style={{ fontSize: 28, fontWeight: 800, color: "#3B82F6" }}>
+                  {(scores["English Language"] || 0) + extras.reduce((a, s) => a + (scores[s] || 0), 0)}
+                </p>
+              </div>
+            </>
+          );
+        })()}
+
+        {currentExam === "SAT" && (() => {
+          const t = getTarget("SAT");
+          const rw = t.rw || 400;
+          const math = t.math || 400;
+          return (
+            <>
+              <div>
+                <p style={S.label}>Step {step + 1} of {totalSteps}</p>
+                <h1 style={{ ...S.h1, marginTop: 8 }}>SAT targets</h1>
+                <p style={{ ...S.body, marginTop: 6 }}>Set your target score for each section (200–800).</p>
+              </div>
+
+              <div style={S.gap(24)}>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF" }}>Reading & Writing</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: "#3B82F6" }}>{rw}</span>
+                  </div>
+                  <input
+                    type="range" min={200} max={800} step={10} value={rw}
+                    onChange={(e) => setTarget("SAT", { rw: Number(e.target.value) })}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF" }}>Math</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: "#3B82F6" }}>{math}</span>
+                  </div>
+                  <input
+                    type="range" min={200} max={800} step={10} value={math}
+                    onChange={(e) => setTarget("SAT", { math: Number(e.target.value) })}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ textAlign: "center", padding: "16px 0", borderTop: "1px solid #1E2A4A" }}>
+                <p style={{ fontSize: 12, color: "#7C8AA5" }}>Target total</p>
+                <p style={{ fontSize: 28, fontWeight: 800, color: "#3B82F6" }}>{rw + math}</p>
+              </div>
+            </>
+          );
+        })()}
+
+        {currentExam === "ACT" && (() => {
+          const t = getTarget("ACT");
+          const composite = t.composite || 20;
+          return (
+            <>
+              <div>
+                <p style={S.label}>Step {step + 1} of {totalSteps}</p>
+                <h1 style={{ ...S.h1, marginTop: 8 }}>ACT target</h1>
+                <p style={{ ...S.body, marginTop: 6 }}>Set your target composite score (1–36).</p>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF" }}>Composite Score</span>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "#3B82F6" }}>{composite}</span>
+                </div>
+                <input
+                  type="range" min={1} max={36} step={1} value={composite}
+                  onChange={(e) => setTarget("ACT", { composite: Number(e.target.value) })}
+                  style={{ width: "100%" }}
+                />
+              </div>
+
+              <div style={{ textAlign: "center", padding: "16px 0", borderTop: "1px solid #1E2A4A" }}>
+                <p style={{ fontSize: 12, color: "#7C8AA5" }}>Target composite</p>
+                <p style={{ fontSize: 28, fontWeight: 800, color: "#3B82F6" }}>{composite}</p>
+              </div>
+            </>
+          );
+        })()}
+
+        {currentExam === "IELTS" && (() => {
+          const t = getTarget("IELTS");
+          const listening = t.listening || 6;
+          const reading = t.reading || 6;
+          const writing = t.writing || 6;
+          const speaking = t.speaking || 6;
+          const bandRow = (label, key, value) => (
+            <div key={key}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#F0F2FF" }}>{label}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: "#3B82F6" }}>{value}</span>
+              </div>
+              <input
+                type="range" min={1} max={9} step={0.5} value={value}
+                onChange={(e) => setTarget("IELTS", { [key]: Number(e.target.value) })}
+                style={{ width: "100%" }}
+              />
+            </div>
+          );
+          return (
+            <>
+              <div>
+                <p style={S.label}>Step {step + 1} of {totalSteps}</p>
+                <h1 style={{ ...S.h1, marginTop: 8 }}>IELTS targets</h1>
+                <p style={{ ...S.body, marginTop: 6 }}>Set your target band for each skill (1–9).</p>
+              </div>
+
+              <div style={S.gap(20)}>
+                {bandRow("Listening", "listening", listening)}
+                {bandRow("Reading", "reading", reading)}
+                {bandRow("Writing", "writing", writing)}
+                {bandRow("Speaking", "speaking", speaking)}
+              </div>
+
+              <div style={{ textAlign: "center", padding: "16px 0", borderTop: "1px solid #1E2A4A" }}>
+                <p style={{ fontSize: 12, color: "#7C8AA5" }}>Target overall band</p>
+                <p style={{ fontSize: 28, fontWeight: 800, color: "#3B82F6" }}>
+                  {(Math.round(((listening + reading + writing + speaking) / 4) * 2) / 2).toFixed(1)}
+                </p>
+              </div>
+            </>
+          );
+        })()}
+
+        {step === totalSteps - 1 && (
           <>
             <div>
-              <p style={S.label}>Step 3 of 3</p>
-              <h1 style={{ ...S.h1, marginTop: 8 }}>What's your<br />target grade?</h1>
-              <p style={{ ...S.body, marginTop: 6 }}>Based on {primaryExam}'s grading system.</p>
+              <p style={S.label}>Last step</p>
+              <h1 style={{ ...S.h1, marginTop: 8 }}>You're all set, {name.trim() || "Student"}!</h1>
+              <p style={{ ...S.body, marginTop: 6 }}>Here's what we've got:</p>
             </div>
             <div style={S.gap(10)}>
-              {gradeOptions.map(grade => (
-                <button
-                  key={grade}
-                  onClick={() => setTargetGrade(grade)}
-                  style={{
-                    ...S.cardAlt, cursor: "pointer", textAlign: "left", padding: 16,
-                    border: `1.5px solid ${targetGrade === grade ? "#3B82F6" : "#1E2A4A"}`,
-                    backgroundColor: targetGrade === grade ? "#1E3A5F" : "#111827",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "#F0F2FF" }}>{grade}</span>
-                    {targetGrade === grade && <Icon name="check" size={16} color="#3B82F6" />}
+              {selectedExams.map(exam => (
+                <div key={exam} style={{ ...S.cardAlt, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <ExamLogo exam={exam} size={24} />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#F0F2FF" }}>{exam}</span>
                   </div>
-                </button>
+                  {exam === "JAMB" && <p style={{ fontSize: 13, color: "#7C8AA5" }}>Target: {jambTotal(exam)}</p>}
+                  {exam === "SAT" && <p style={{ fontSize: 13, color: "#7C8AA5" }}>Target: {satTotal(exam)}</p>}
+                  {exam === "ACT" && <p style={{ fontSize: 13, color: "#7C8AA5" }}>Target: {getTarget(exam).composite || "—"}</p>}
+                  {exam === "IELTS" && <p style={{ fontSize: 13, color: "#7C8AA5" }}>Target: {ieltsAvg(exam)} overall</p>}
+                  {(WAEC_STYLE_EXAMS.includes(exam) || exam === "IGCSE") && (
+                    <p style={{ fontSize: 13, color: "#7C8AA5" }}>
+                      {(getTarget(exam).subjects || []).length} subjects targeted
+                    </p>
+                  )}
+                </div>
               ))}
             </div>
           </>
         )}
 
-        <button style={{ ...S.btnPrimary, opacity: canContinue ? 1 : 0.4 }} disabled={!canContinue} onClick={next}>
-          {step === 2 ? "Start Practicing →" : "Continue →"}
+        <button style={{ ...S.btnPrimary, opacity: canContinue() ? 1 : 0.4 }} disabled={!canContinue()} onClick={next}>
+          {step === totalSteps - 1 ? "Start Practicing →" : "Continue →"}
         </button>
       </div>
     </div>
@@ -4886,6 +5505,7 @@ const [onboarded, setOnboarded] = useState(false);
   const [bookmarks, setBookmarks] = useState([]);
   const [stats, setStats] = useState({ total: 0, correct: 0 });
   const [dailyActivity, setDailyActivity] = useState({}); // { "YYYY-MM-DD": { total, correct } }
+  const [subjectStats, setSubjectStats] = useState({}); // { "EXAM::Subject": { log: [boolean, ...] } } — recency-weighted accuracy source
     const [satActiveTest, setSatActiveTest] = useState(null);
       const [satCompletedTests, setSatCompletedTests] = useState([]);
   const [viewportWidth, setViewportWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 430);
@@ -4922,6 +5542,7 @@ const [onboarded, setOnboarded] = useState(false);
             setBookmarks(data.bookmarks || []);
             setStats(data.stats || { total: 0, correct: 0 });
             setDailyActivity(data.dailyActivity || {});
+            setSubjectStats(data.subjectStats || {});
                         setSatActiveTest(data.satActiveTest || null);
             setOnboarded(!!data.profile);
           } else {
@@ -4944,8 +5565,8 @@ const [onboarded, setOnboarded] = useState(false);
     useEffect(() => {
     if (!user || !profile) return;
     const ref = doc(db, "users", user.uid);
-        setDoc(ref, { profile, bookmarks, stats, dailyActivity, satActiveTest, satCompletedTests, email: user.email, name: user.displayName }, { merge: true }).catch(err => console.error("Save failed:", err));
-  }, [user, profile, bookmarks, stats, dailyActivity, satActiveTest, satCompletedTests]);
+        setDoc(ref, { profile, bookmarks, stats, dailyActivity, subjectStats, satActiveTest, satCompletedTests, email: user.email, name: user.displayName }, { merge: true }).catch(err => console.error("Save failed:", err));
+  }, [user, profile, bookmarks, stats, dailyActivity, subjectStats, satActiveTest, satCompletedTests]);
 
     const handleSignedIn = (firebaseUser) => {
     setUser(firebaseUser);
@@ -4996,6 +5617,20 @@ const [onboarded, setOnboarded] = useState(false);
         ...prev,
         [today]: { total: existing.total + answers.length, correct: existing.correct + correct },
       };
+    });
+    // Log each answer's correctness against its question's exam+subject, for
+    // recency-weighted per-subject accuracy on Home/Progress.
+    setSubjectStats(prev => {
+      const next = { ...prev };
+      answers.forEach(a => {
+        const q = (pool || []).find(p => p.id === a.qid);
+        if (!q || !q.exam || !q.subject) return;
+        const key = `${q.exam}::${q.subject}`;
+        const existingLog = next[key]?.log || [];
+        const updatedLog = [...existingLog, a.correct].slice(-50); // cap history at last 50 attempts
+        next[key] = { log: updatedLog };
+      });
+      return next;
     });
     setScreen("results");
   };
@@ -5175,8 +5810,8 @@ const [onboarded, setOnboarded] = useState(false);
 
   return (
     <div style={shellStyle}>
-      {tab === "home" && <HomeScreen onStart={handleStart} onSearch={() => setScreen("search")} onNotes={() => setScreen("notes")} bookmarks={bookmarks} stats={stats} profile={profile} dailyActivity={dailyActivity} />}
-      {tab === "analytics" && <AnalyticsScreen stats={stats} profile={profile} dailyActivity={dailyActivity} />}
+      {tab === "home" && <HomeScreen onStart={handleStart} onSearch={() => setScreen("search")} onNotes={() => setScreen("notes")} bookmarks={bookmarks} stats={stats} profile={profile} dailyActivity={dailyActivity} subjectStats={subjectStats} />}
+      {tab === "analytics" && <AnalyticsScreen stats={stats} profile={profile} dailyActivity={dailyActivity} subjectStats={subjectStats} />}
       {tab === "coach" && <AIHub onBack={() => setTab("home")} />}
       {tab === "colleges" && <CollegesScreen />}
       {tab === "bookmarks" && <BookmarksScreen bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onStartBookmarkQuiz={() => handleStart("practice")} />}
