@@ -1663,7 +1663,44 @@ const Icon = ({ name, size = 20, color = "currentColor" }) => {
   return icons[name] || null;
 };
 
-// ── STYLES ────────────────────────────────────────────────────────────────────
+// ── INFO TOOLTIP ──────────────────────────────────────────────────────────────
+// A small "?" badge that reveals an explainer bubble when tapped — closes on
+// a second tap (works for touch, not reliant on hover which doesn't exist on mobile).
+function InfoTooltip({ text, align = "right" }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+        style={{
+          width: 18, height: 18, borderRadius: "50%", border: "1px solid #3B4A6B",
+          backgroundColor: "transparent", color: "#7C8AA5", fontSize: 11, fontWeight: 700,
+          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, lineHeight: 1,
+        }}
+      >
+        ?
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <div
+            style={{
+              position: "absolute", top: 24, [align]: 0, zIndex: 41,
+              width: 220, padding: "12px 14px", borderRadius: 12,
+              backgroundColor: "#12182E", border: "1px solid #2A3A5F",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+              fontSize: 12, lineHeight: 1.5, color: "#C9D2E8",
+            }}
+          >
+            {text}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
 const S = {
   // Layout
   app: { minHeight: "100vh", backgroundColor: "#080D1E", color: "#F0F2FF", fontFamily: "'Inter', -apple-system, sans-serif", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: 80 },
@@ -2102,14 +2139,17 @@ function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dai
 
         {/* Streak */}
         <div style={S.card}>
-          <div style={S.row()}>
-            <Icon name="fire" size={16} color="#F97316" />
-            <span style={{ ...S.label, color: "#F97316" }}>
-              {(() => {
-                const streak = computeStreak(dailyActivity);
-                return streak > 0 ? `Day ${streak} Streak` : "Start Your Streak";
-              })()}
-            </span>
+          <div style={{ ...S.row(), justifyContent: "space-between" }}>
+            <div style={S.row()}>
+              <Icon name="fire" size={16} color="#F97316" />
+              <span style={{ ...S.label, color: "#F97316" }}>
+                {(() => {
+                  const streak = computeStreak(dailyActivity);
+                  return streak > 0 ? `Day ${streak} Streak` : "Start Your Streak";
+                })()}
+              </span>
+            </div>
+            <InfoTooltip text="Your streak counts consecutive days you've answered at least one question. It stays alive as long as you show up daily — right or wrong doesn't matter, just keep practicing." />
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
             {getLast7Days(dailyActivity).map((d, i) => {
@@ -2130,7 +2170,10 @@ function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dai
         {/* Target cards — per exam readiness + gap-to-target, from onboarding targets */}
         {profile?.targets && (profile?.exams || []).some(e => examTargetHeadline(e, profile.targets)) && (
           <div>
-            <p style={{ ...S.label, marginBottom: 12 }}>Your Targets</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <p style={{ ...S.label, margin: 0 }}>Your Targets</p>
+              <InfoTooltip text="This shows how close you are to the grades/scores you set in onboarding, based on your recent practice accuracy per subject — not your all-time average, so recent improvement counts more." />
+            </div>
             <div style={S.gap(10)}>
               {(profile.exams || []).map(exam => {
                 const headline = examTargetHeadline(exam, profile.targets);
@@ -3327,7 +3370,10 @@ function ContributionHeatmap({ dailyActivity }) {
   return (
     <div style={S.card}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <p style={{ ...S.label, margin: 0 }}>Practice Activity</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <p style={{ ...S.label, margin: 0 }}>Practice Activity</p>
+          <InfoTooltip text="Each square is one day. Darker/brighter squares mean more questions answered that day — this is built entirely from your real practice history, not a demo pattern." />
+        </div>
         <span style={S.small}>{totalQuestions} questions · past year</span>
       </div>
 
@@ -3461,7 +3507,10 @@ function AnalyticsScreen({ stats, allHistory, profile, dailyActivity, subjectSta
         {/* Exam Readiness — real per-subject breakdown vs onboarding targets */}
         {profile?.targets && (profile?.exams || []).some(e => profile.targets[e]) && (
           <div style={S.gap(14)}>
-            <p style={S.label}>Exam Readiness</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <p style={{ ...S.label, margin: 0 }}>Exam Readiness</p>
+              <InfoTooltip text="Readiness % compares your recent accuracy per subject against the grade/score you set as your target. 100% means you're currently performing at or above your goal." />
+            </div>
             {(profile.exams || []).map(exam => {
               const t = profile.targets[exam];
               if (!t) return null;
@@ -5021,7 +5070,8 @@ function OnboardingScreen({ onComplete }) {
       }
       if (currentExam === "JAMB") {
         const scores = t.scores || {};
-        return (t.subjects || []).length === 3 && Object.keys(scores).length === 3;
+        const activeSubjects = ["English Language", ...(t.subjects || [])];
+        return (t.subjects || []).length === 3 && activeSubjects.every(s => scores[s] != null);
       }
       if (currentExam === "SAT") return !!t.rw && !!t.math;
       if (currentExam === "ACT") return !!t.composite;
@@ -5258,8 +5308,17 @@ function OnboardingScreen({ onComplete }) {
           const scores = t.scores || {};
           const pickExtra = (subj) => {
             let next = extras.includes(subj) ? extras.filter(s => s !== subj) : [...extras, subj];
-            if (next.length > 3) next = next.slice(1);
-            setTarget("JAMB", { subjects: next });
+            let removed = null;
+            if (next.length > 3) {
+              removed = next[0];
+              next = next.slice(1);
+            }
+            // Drop the stale score entry for any subject that just got swapped/removed
+            // so the "all active subjects scored" check doesn't get confused by leftovers.
+            const nextScores = { ...scores };
+            if (removed) delete nextScores[removed];
+            if (!next.includes(subj) && subj in nextScores) delete nextScores[subj];
+            setTarget("JAMB", { subjects: next, scores: nextScores });
           };
           return (
             <>
