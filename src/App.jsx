@@ -1665,13 +1665,32 @@ const Icon = ({ name, size = 20, color = "currentColor" }) => {
 
 // ── INFO TOOLTIP ──────────────────────────────────────────────────────────────
 // A small "?" badge that reveals an explainer bubble when tapped — closes on
-// a second tap (works for touch, not reliant on hover which doesn't exist on mobile).
-function InfoTooltip({ text, align = "right" }) {
+// a second tap. Uses fixed positioning computed from the button's real screen
+// location so it never gets clipped by a card's rounded-corner overflow, and
+// clamps to stay fully on-screen on any device width (phone, iPad, laptop).
+function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const TOOLTIP_WIDTH = 240;
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      const vw = window.innerWidth;
+      let left = rect.left + rect.width / 2 - TOOLTIP_WIDTH / 2;
+      left = Math.max(12, Math.min(left, vw - TOOLTIP_WIDTH - 12));
+      setPos({ top: rect.bottom + 8, left });
+    }
+    setOpen(o => !o);
+  };
+
   return (
     <div style={{ position: "relative", display: "inline-flex" }}>
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+        ref={btnRef}
+        onClick={toggle}
         style={{
           width: 18, height: 18, borderRadius: "50%", border: "1px solid #3B4A6B",
           backgroundColor: "transparent", color: "#7C8AA5", fontSize: 11, fontWeight: 700,
@@ -1682,11 +1701,11 @@ function InfoTooltip({ text, align = "right" }) {
       </button>
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 9998 }} />
           <div
             style={{
-              position: "absolute", top: 24, [align]: 0, zIndex: 41,
-              width: 220, padding: "12px 14px", borderRadius: 12,
+              position: "fixed", top: pos.top, left: pos.left, zIndex: 9999,
+              width: TOOLTIP_WIDTH, padding: "12px 14px", borderRadius: 12,
               backgroundColor: "#12182E", border: "1px solid #2A3A5F",
               boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
               fontSize: 12, lineHeight: 1.5, color: "#C9D2E8",
@@ -1707,7 +1726,17 @@ const S = {
   screen: { padding: "0 0 16px" },
 
   // Nav
-  nav: { position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, backgroundColor: "#0D1326", borderTop: "1px solid #1E2A4A", display: "flex", zIndex: 100 },
+  nav: {
+    position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430,
+    backgroundColor: "rgba(13, 19, 38, 0.72)",
+    backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    borderLeft: "1px solid rgba(255,255,255,0.06)",
+    borderRight: "1px solid rgba(255,255,255,0.06)",
+    borderRadius: "18px 18px 0 0",
+    display: "flex", zIndex: 100,
+    boxShadow: "0 -8px 24px rgba(0,0,0,0.25)",
+  },
   navBtn: (active) => ({ flex: 1, padding: "12px 4px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: active ? "#3B82F6" : "#4A5568", transition: "color 0.2s" }),
   navLabel: { fontSize: 10, fontWeight: 600, letterSpacing: "0.05em" },
 
@@ -2112,12 +2141,15 @@ function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dai
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           {[
-            { label: "Answered", val: totalQ, icon: "book" },
-            { label: "Correct", val: correctQ, icon: "check" },
-            { label: "Accuracy", val: `${pct}%`, icon: "star" },
-          ].map(({ label, val, icon }) => (
+            { label: "Answered", val: totalQ, icon: "book", info: "Total questions you've answered across every subject and exam, all-time." },
+            { label: "Correct", val: correctQ, icon: "check", info: "How many of those answered questions you got right, all-time." },
+            { label: "Accuracy", val: `${pct}%`, icon: "star", info: "Your overall correct rate: Correct ÷ Answered. This is an all-time average, separate from the recency-weighted per-subject numbers used for target readiness." },
+          ].map(({ label, val, icon, info }) => (
             <div key={label} style={{ ...S.card, textAlign: "center", padding: "14px 8px" }}>
-              <Icon name={icon} size={16} color="#3B82F6" />
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 6 }}>
+                <Icon name={icon} size={16} color="#3B82F6" />
+                <InfoTooltip text={info} />
+              </div>
               <div style={{ fontSize: 22, fontWeight: 800, margin: "6px 0 2px", letterSpacing: "-0.02em" }}>{val}</div>
               <div style={S.small}>{label}</div>
             </div>
@@ -2284,7 +2316,25 @@ function PracticeSetup({ profile, defaultExam, defaultSubject, defaultTopic, onB
   const [openPicker, setOpenPicker] = useState(null); // "topic" | "year" | "count" | "time" | null
   const [tempTime, setTempTime] = useState({ h: 0, m: 30, s: 0 });
 
-  const subjectsForExam = [...new Set(QUESTIONS.filter(q => q.exam === exam).map(q => q.subject))];
+  // Only show subjects the student actually picked during onboarding for this exam —
+  // falls back to the full master list if they never set targets for this exam
+  // (e.g. picked it as an exam but skipped/hasn't done its config step).
+  const allSubjectsForExam = [...new Set(QUESTIONS.filter(q => q.exam === exam).map(q => q.subject))];
+  const onboardedSubjects = (() => {
+    const t = profile?.targets?.[exam];
+    if (!t) return null;
+    if (exam === "JAMB") {
+      const extras = t.subjects || [];
+      return extras.length > 0 ? ["English Language", ...extras] : null;
+    }
+    if (["WAEC", "NECO", "GCE", "IGCSE"].includes(exam)) {
+      return (t.subjects || []).length > 0 ? t.subjects : null;
+    }
+    return null; // SAT/ACT/IELTS aren't subject-checklist exams
+  })();
+  const subjectsForExam = onboardedSubjects
+    ? allSubjectsForExam.filter(s => onboardedSubjects.includes(s))
+    : allSubjectsForExam;
   const singleSubject = subjects.length === 1 ? subjects[0] : null;
   const topicsForSubject = singleSubject ? ["All Topics", ...new Set(QUESTIONS.filter(q => q.exam === exam && q.subject === singleSubject).map(q => q.topic))] : ["All Topics"];
   const yearsAvailable = ["All Years", ...new Set(QUESTIONS.filter(q =>
@@ -3442,9 +3492,24 @@ function AnalyticsScreen({ stats, allHistory, profile, dailyActivity, subjectSta
       <div style={{ ...S.px, ...S.gap(14) }}>
         {/* Rank card */}
         <div style={{ ...S.card, background: "linear-gradient(135deg, #1E3A5F 0%, #0D1326 100%)" }}>
+          <style>{`
+            @keyframes rankIconShine {
+              0% { transform: translateX(-120%) skewX(-20deg); opacity: 0; }
+              8% { opacity: 0.85; }
+              22% { opacity: 0.85; }
+              32% { transform: translateX(220%) skewX(-20deg); opacity: 0; }
+              100% { transform: translateX(220%) skewX(-20deg); opacity: 0; }
+            }
+          `}</style>
           <div style={S.row(12)}>
-            <div style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: "#0A1628", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22 }}>
-              🎓
+            <div style={{ position: "relative", width: 46, height: 46, borderRadius: 14, backgroundColor: "#0A1628", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22, overflow: "hidden" }}>
+              <span style={{ zIndex: 1 }}>🎓</span>
+              <div style={{
+                position: "absolute", top: 0, left: 0, width: "45%", height: "100%",
+                background: "linear-gradient(75deg, transparent, rgba(255,255,255,0.55), transparent)",
+                animation: "rankIconShine 3400ms ease-in-out 0ms infinite",
+                pointerEvents: "none",
+              }} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -3458,13 +3523,16 @@ function AnalyticsScreen({ stats, allHistory, profile, dailyActivity, subjectSta
         {/* Summary */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
           {[
-            { label: "Total Answered", val: stats.total, icon: "book", color: "#3B82F6" },
-            { label: "Correct", val: stats.correct, icon: "check", color: "#22C55E" },
-            { label: "Accuracy", val: `${pct}%`, icon: "star", color: "#F59E0B" },
-            { label: "Streak", val: streak > 0 ? `${streak} day${streak === 1 ? "" : "s"} 🔥` : "0 days", icon: "fire", color: "#F97316" },
-          ].map(({ label, val, icon, color }) => (
+            { label: "Total Answered", val: stats.total, icon: "book", color: "#3B82F6", info: "Total questions you've answered across every subject and exam, all-time." },
+            { label: "Correct", val: stats.correct, icon: "check", color: "#22C55E", info: "How many of those answered questions you got right, all-time." },
+            { label: "Accuracy", val: `${pct}%`, icon: "star", color: "#F59E0B", info: "Your overall correct rate: Correct ÷ Answered, all-time." },
+            { label: "Streak", val: streak > 0 ? `${streak} day${streak === 1 ? "" : "s"} 🔥` : "0 days", icon: "fire", color: "#F97316", info: "Consecutive days you've answered at least one question. Stays alive as long as you show up daily." },
+          ].map(({ label, val, icon, color, info }) => (
             <div key={label} style={{ ...S.card, padding: "14px" }}>
-              <Icon name={icon} size={16} color={color} />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Icon name={icon} size={16} color={color} />
+                <InfoTooltip text={info} />
+              </div>
               <div style={{ fontSize: 24, fontWeight: 800, margin: "6px 0 2px", color, letterSpacing: "-0.02em" }}>{val}</div>
               <div style={S.small}>{label}</div>
             </div>
