@@ -27,164 +27,6 @@ const googleProvider = new GoogleAuthProvider();
 const EXAMS = ["WAEC", "NECO", "JAMB", "GCE", "IGCSE", "SAT", "ACT", "IELTS"];
 
 const QUESTIONS = [
-  // WAEC – Chemistry
-  {
-    id: 1, exam: "WAEC", year: 2023, subject: "Chemistry", topic: "Organic Chemistry", difficulty: "Medium",
-    question: "Which of the following is the general formula for alkenes?",
-    options: ["CₙH₂ₙ₊₂", "CₙH₂ₙ", "CₙH₂ₙ₋₂", "CₙHₙ"],
-    answer: 1, explanation: "Alkenes have one C=C double bond, giving the general formula CₙH₂ₙ. Alkanes are CₙH₂ₙ₊₂ and alkynes are CₙH₂ₙ₋₂.", source: "WAEC Chemistry 2023, Paper 1 Q14"
-  },
-  {
-    id: 2, exam: "WAEC", year: 2022, subject: "Chemistry", topic: "Stoichiometry", difficulty: "Hard",
-    question: "How many moles of oxygen are required to completely combust 2 moles of propane (C₃H₈)?",
-    options: ["5 moles", "8 moles", "10 moles", "12 moles"],
-    answer: 2, explanation: "C₃H₈ + 5O₂ → 3CO₂ + 4H₂O. For 2 moles of propane: 2 × 5 = 10 moles of O₂.", source: "WAEC Chemistry 2022, Paper 2 Q3"
-  },
-  {
-    id: 3, exam: "WAEC", year: 2023, subject: "Biology", topic: "Cell Biology", difficulty: "Easy",
-    question: "Which organelle is responsible for ATP production in eukaryotic cells?",
-    options: ["Ribosome", "Nucleus", "Mitochondria", "Golgi apparatus"],
-    answer: 2, explanation: "The mitochondria is the 'powerhouse of the cell' — it produces ATP via cellular respiration through oxidative phosphorylation.", source: "WAEC Biology 2023, Paper 1 Q7"
-  },
-  {
-    id: 4, exam: "WAEC", year: 2022, subject: "Biology", topic: "Genetics", difficulty: "Medium",
-    question: "In a monohybrid cross between two heterozygous parents (Aa × Aa), what is the expected phenotypic ratio?",
-    options: ["1:2:1", "3:1", "1:1", "2:1"],
-    answer: 1, explanation: "Aa × Aa gives AA, Aa, Aa, aa. Since A is dominant, AA and Aa show dominant phenotype. Ratio = 3 dominant : 1 recessive.", source: "WAEC Biology 2022, Paper 1 Q22"
-  },
-  {
-    id: 5, exam: "WAEC", year: 2023, subject: "Physics", topic: "Mechanics", difficulty: "Medium",
-    question: "A body of mass 5 kg moving at 10 m/s has kinetic energy of:",
-    options: ["25 J", "50 J", "250 J", "500 J"],
-    answer: 2, explanation: "KE = ½mv² = ½ × 5 × 10² = ½ × 5 × 100 = 250 J.", source: "WAEC Physics 2023, Paper 1 Q11"
-  },
-  {
-    id: 6, exam: "WAEC", year: 2022, subject: "Physics", topic: "Waves", difficulty: "Easy",
-    question: "The speed of light in a vacuum is approximately:",
-    options: ["3 × 10⁶ m/s", "3 × 10⁸ m/s", "3 × 10¹⁰ m/s", "3 × 10¹² m/s"],
-    answer: 1, explanation: "The speed of light in vacuum c ≈ 3 × 10⁸ m/s. This is a fundamental constant in physics.", source: "WAEC Physics 2022, Paper 1 Q5"
-  },
-  {
-    id: 7, exam: "WAEC", year: 2023, subject: "Mathematics", topic: "Algebra", difficulty: "Medium",
-    question: "Solve for x: 2x² - 5x - 3 = 0",
-    options: ["x = 3 or x = -½", "x = -3 or x = ½", "x = 3 or x = ½", "x = -3 or x = -½"],
-    answer: 0, explanation: "Factorising: (2x + 1)(x - 3) = 0 → x = -½ or x = 3. So x = 3 or x = -½.", source: "WAEC Maths 2023, Paper 2 Q6"
-  },
-  {
-    id: 8, exam: "WAEC", year: 2022, subject: "English Language", topic: "Lexis & Structure", difficulty: "Medium",
-    question: "Choose the word that is closest in meaning to 'EPHEMERAL':",
-    options: ["Permanent", "Transient", "Ancient", "Substantial"],
-    answer: 1, explanation: "'Ephemeral' means lasting for a very short time. 'Transient' is the closest synonym, also meaning short-lived or temporary.", source: "WAEC English 2022, Paper 1 Q31"
-  },
-  // JAMB
-  {
-    id: 9, exam: "JAMB", year: 2023, subject: "Chemistry", topic: "Periodic Table", difficulty: "Easy",
-    question: "Which group of elements in the periodic table are known as noble gases?",
-    options: ["Group I", "Group VI", "Group VII", "Group VIII/0"],
-    answer: 3, explanation: "Noble gases (He, Ne, Ar, Kr, Xe, Rn) occupy Group VIII or Group 0. They have full outer electron shells and are chemically inert.", source: "JAMB Chemistry 2023 Q18"
-  },
-  {
-    id: 10, exam: "JAMB", year: 2022, subject: "Mathematics", topic: "Statistics", difficulty: "Medium",
-    question: "Find the mean of: 4, 7, 2, 9, 8, 5, 1, 6, 3, 5",
-    options: ["4.5", "5", "5.5", "6"],
-    answer: 1, explanation: "Sum = 4+7+2+9+8+5+1+6+3+5 = 50. Mean = 50 ÷ 10 = 5.", source: "JAMB Maths 2022 Q7"
-  },
-  {
-    id: 11, exam: "JAMB", year: 2023, subject: "English Language", topic: "Comprehension", difficulty: "Hard",
-    question: "The word 'LOQUACIOUS' most nearly means:",
-    options: ["Silent", "Talkative", "Angry", "Generous"],
-    answer: 1, explanation: "'Loquacious' derives from Latin loqui (to speak) and means excessively talkative. Talkative is the correct synonym.", source: "JAMB Use of English 2023 Q44"
-  },
-  {
-    id: 12, exam: "JAMB", year: 2022, subject: "Biology", topic: "Nutrition", difficulty: "Easy",
-    question: "Which vitamin is produced in the skin when exposed to sunlight?",
-    options: ["Vitamin A", "Vitamin B12", "Vitamin C", "Vitamin D"],
-    answer: 3, explanation: "Vitamin D (calciferol) is synthesized in the skin when UV-B rays from sunlight convert 7-dehydrocholesterol to vitamin D3.", source: "JAMB Biology 2022 Q33"
-  },
-  // IGCSE
-  {
-    id: 16, exam: "IGCSE", year: 2022, subject: "Chemistry", topic: "Acids & Bases", difficulty: "Medium",
-    question: "What is the pH of a neutral solution at 25°C?",
-    options: ["0", "5", "7", "14"],
-    answer: 2, explanation: "A neutral solution has equal concentrations of H⁺ and OH⁻ ions. At 25°C, this corresponds to a pH of exactly 7.", source: "Cambridge IGCSE Chemistry 2022, Paper 2 Q12"
-  },
-  {
-    id: 17, exam: "IGCSE", year: 2023, subject: "Physics", topic: "Electricity", difficulty: "Medium",
-    question: "Three resistors of 2Ω, 4Ω and 6Ω are connected in series. What is the total resistance?",
-    options: ["1.09Ω", "4Ω", "12Ω", "48Ω"],
-    answer: 2, explanation: "In series: R_total = R₁ + R₂ + R₃ = 2 + 4 + 6 = 12Ω. In parallel you'd use the reciprocal formula.", source: "Cambridge IGCSE Physics 2023, Paper 4 Q8"
-  },
-  // NECO
-  {
-    id: 18, exam: "NECO", year: 2022, subject: "Economics", topic: "Supply & Demand", difficulty: "Medium",
-    question: "When the price of a good increases and quantity demanded falls, this illustrates:",
-    options: ["The law of supply", "The law of demand", "Price elasticity of supply", "Consumer surplus"],
-    answer: 1, explanation: "The law of demand states: all else equal, as price rises, quantity demanded falls. This is an inverse relationship.", source: "NECO Economics 2022 Q5"
-  },
-  {
-    id: 19, exam: "NECO", year: 2023, subject: "Biology", topic: "Ecology", difficulty: "Easy",
-    question: "Which of the following correctly describes a food chain?",
-    options: ["Sun → Consumer → Producer → Decomposer", "Producer → Primary Consumer → Secondary Consumer → Tertiary Consumer",
-      "Decomposer → Producer → Consumer", "Consumer → Producer → Sun"],
-    answer: 1, explanation: "Energy flows from producers (plants) → primary consumers (herbivores) → secondary consumers → tertiary consumers. Decomposers break down dead matter at any level.", source: "NECO Biology 2023 Q17"
-  },
-  // GCE / A-Level
-  {
-    id: 20, exam: "GCE", year: 2022, subject: "Mathematics", topic: "Calculus", difficulty: "Hard",
-    question: "Differentiate y = 3x⁴ - 2x³ + 5x - 7 with respect to x:",
-    options: ["12x³ - 6x² + 5", "12x³ - 6x + 5", "4x³ - 3x² + 5", "12x⁴ - 6x³ + 5"],
-    answer: 0, explanation: "Using power rule: d/dx(3x⁴) = 12x³, d/dx(-2x³) = -6x², d/dx(5x) = 5, d/dx(-7) = 0. So dy/dx = 12x³ - 6x² + 5.", source: "GCE A-Level Maths 2022, Paper 1 Q3"
-  },
-  // IGCSE – Mathematics (CIE 0580/11, real verified past paper questions)
-  {
-    id: 21, exam: "IGCSE", year: 2023, subject: "Mathematics", topic: "Number", difficulty: "Easy",
-    question: "Work out the number of months in 5 years.",
-    options: ["50", "55", "60", "65"],
-    answer: 2, explanation: "There are 12 months in a year, so 5 years = 5 × 12 = 60 months.", source: "CIE IGCSE Maths 0580/11, June 2023 Q1"
-  },
-  {
-    id: 22, exam: "IGCSE", year: 2023, subject: "Mathematics", topic: "Number", difficulty: "Easy",
-    question: "Write 3752 correct to the nearest 100.",
-    options: ["3700", "3750", "3800", "4000"],
-    answer: 2, explanation: "Looking at the tens digit (5), which rounds up, 3752 rounded to the nearest 100 is 3800.", source: "CIE IGCSE Maths 0580/11, June 2023 Q2(b)"
-  },
-  {
-    id: 23, exam: "IGCSE", year: 2023, subject: "Mathematics", topic: "Money & Ratio", difficulty: "Medium",
-    question: "Magazines cost $3.40 each. Rosina has $15 to buy as many magazines as possible. How many magazines can she buy, and how much money is left over?",
-    options: ["4 magazines, $1.40 left", "3 magazines, $4.80 left", "4 magazines, $0.60 left", "5 magazines, $1.00 left"],
-    answer: 0, explanation: "15 ÷ 3.40 = 4.41..., so she can afford 4 magazines. 4 × $3.40 = $13.60. $15 − $13.60 = $1.40 left over.", source: "CIE IGCSE Maths 0580/11, June 2023 Q3"
-  },
-  {
-    id: 24, exam: "IGCSE", year: 2023, subject: "Mathematics", topic: "Statistics", difficulty: "Medium",
-    question: "Calculate the mean of these numbers: 21, 8, 15, 32, 3, 29, 19, 45, 8",
-    options: ["18", "20", "22", "24"],
-    answer: 1, explanation: "Sum = 21+8+15+32+3+29+19+45+8 = 180. There are 9 numbers, so mean = 180 ÷ 9 = 20.", source: "CIE IGCSE Maths 0580/11, June 2023 Q5"
-  },
-  {
-    id: 25, exam: "IGCSE", year: 2023, subject: "Mathematics", topic: "Fractions & Percentages", difficulty: "Medium",
-    question: "Write these in order, starting with the smallest: 13/213, 1/5, 0.071, 0.7, 7%",
-    options: ["13/213, 7%, 0.071, 1/5, 0.7", "0.071, 7%, 13/213, 1/5, 0.7", "7%, 13/213, 0.071, 1/5, 0.7", "13/213, 0.071, 7%, 1/5, 0.7"],
-    answer: 0, explanation: "Converting all to decimals: 13/213 ≈ 0.061, 7% = 0.07, 0.071, 1/5 = 0.2, 0.7 = 0.7. Ordered smallest to largest: 13/213, 7%, 0.071, 1/5, 0.7.", source: "CIE IGCSE Maths 0580/11, June 2023 Q7"
-  },
-  {
-    id: 26, exam: "IGCSE", year: 2023, subject: "Mathematics", topic: "Fractions", difficulty: "Easy",
-    question: "Write the fraction 84/24 in its simplest form.",
-    options: ["7/2", "5/2", "3/1", "7/3"],
-    answer: 0, explanation: "84/24 — both divide by 12: 84÷12 = 7, 24÷12 = 2. Simplest form is 7/2.", source: "CIE IGCSE Maths 0580/11, June 2023 Q8"
-  },
-  {
-    id: 27, exam: "IGCSE", year: 2023, subject: "Mathematics", topic: "Geometry & Mensuration", difficulty: "Medium",
-    question: "Calculate the volume of a sphere with diameter 4.8 cm. (V = 4/3 πr³)",
-    options: ["46.5 cm³", "57.9 cm³", "115.8 cm³", "28.9 cm³"],
-    answer: 1, explanation: "Radius = 4.8 ÷ 2 = 2.4 cm. V = 4/3 × π × 2.4³ = 4/3 × π × 13.824 ≈ 57.9 cm³.", source: "CIE IGCSE Maths 0580/11, June 2023 Q13"
-  },
-  {
-    id: 28, exam: "IGCSE", year: 2023, subject: "Mathematics", topic: "Probability", difficulty: "Medium",
-    question: "Eric has four colours of paint. The probability he uses Red is 0.3, Blue is 0.35, Green is 0.13, and Yellow is x. Find the value of x.",
-    options: ["0.18", "0.20", "0.22", "0.25"],
-    answer: 2, explanation: "All probabilities must sum to 1: 0.3 + 0.35 + 0.13 + x = 1, so x = 1 − 0.78 = 0.22.", source: "CIE IGCSE Maths 0580/11, June 2023 Q15"
-  },
-
   {
     id: 1001, exam: "SAT", year: 2024, practiceTest: 4, subject: "Reading and Writing", module: "Module 1", topic: "Vocabulary in Context", difficulty: "Easy",
     passage: "The spacecraft OSIRIS-REx briefly made contact with the asteroid 101955 Bennu in 2020. NASA scientist Daniella DellaGiustina reports that despite facing the unexpected obstacle of a surface mostly covered in boulders, OSIRIS-REx successfully _______ a sample of the surface, gathering pieces of it to bring back to Earth.",
@@ -1025,8 +867,6 @@ const QUESTIONS = [
     options: null, answerType: "gridIn", answer: "600",
     explanation: "210 = 30(1 + p/100), so 7 = 1 + p/100, p/100 = 6, p = 600."
   },
-
-  // JAMB – Physics 2019 (Complete UTME paper, 40 questions)
   {
     id: 2001, exam: "JAMB", year: 2019, subject: "Physics", topic: "Waves & Sound", difficulty: "Medium",
     question: "The velocity of sound in air is NOT affected by which of the following factors during propagation?",
@@ -1267,6 +1107,7 @@ const QUESTIONS = [
     options: ["p-type silicon", "Richer in holes only", "Richer in electron-hole pairs", "n-type silicon"],
     answer: 3, explanation: "A donor impurity is a Group V element (e.g. Phosphorus) with 5 valence electrons — the 5th electron becomes free, making the material rich in free electrons, i.e. n-type.", source: "JAMB Physics 2019 Q40"
   },
+
 ];
 
 const SUBJECTS = ["All Subjects", ...new Set(QUESTIONS.map(q => q.subject))];
