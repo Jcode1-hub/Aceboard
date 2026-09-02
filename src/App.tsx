@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, deleteDoc } from "firebase/firestore";
 import * as pdfjsLib from "pdfjs-dist/build/pdf";
 import { SatTestRunner, PracticeTestSelect } from './BluebookQuizScreen';
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -25,6 +25,8 @@ const googleProvider = new GoogleAuthProvider();
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const EXAMS = ["WAEC", "NECO", "JAMB", "GCE", "IGCSE", "SAT", "ACT", "IELTS"];
+const NG_EXAMS = ["WAEC", "NECO", "JAMB", "GCE"];
+const INTL_EXAMS = ["SAT", "ACT", "IELTS", "IGCSE"];
 
 const QUESTIONS = [
   {
@@ -2451,7 +2453,7 @@ function PracticeSetup({ profile, defaultExam, defaultSubject, defaultTopic, onB
     <div style={{ ...S.screen, overflowY: "auto" }}>
       <div style={S.header}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
-          <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
+          <div style={{ ...S.row(9), padding: "6px 0" }}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
         </button>
         <span style={S.label}>Practice Questions</span>
         <h1 style={{ ...S.h1, marginTop: 6, fontSize: 22 }}>Configure your<br />session</h1>
@@ -3431,7 +3433,7 @@ function ReviewScreen({ answers, questions, onBack }) {
       <div style={{ ...S.header, paddingBottom: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0 }}>
-            <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Results</span></div>
+            <div style={{ ...S.row(9), padding: "6px 0" }}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Results</span></div>
           </button>
           <span style={{ ...S.small }}>{idx + 1} of {questions.length}</span>
         </div>
@@ -3905,68 +3907,61 @@ function CollegeLogo({ college, size = 56, imgSize = 44 }) {
     </div>
   );
 }
-function CollegesScreen() {
+function CollegesScreen({ profile }) {
   const [region, setRegion] = useState("All");
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
-
-  const filtered = COLLEGES.filter(c =>
+  const userExams = profile?.exams || [];
+  const wantsNG = userExams.some(e => NG_EXAMS.includes(e));
+  const wantsIntl = userExams.some(e => INTL_EXAMS.includes(e));
+  const showAll = !wantsNG && !wantsIntl;
+  const scopedColleges = COLLEGES.filter(c => {
+    if (showAll) return true;
+    return c.country === "Nigeria" ? wantsNG : wantsIntl;
+  });
+  const scopedRegions = ["All", ...new Set(scopedColleges.map(c => c.region))];
+  const filtered = scopedColleges.filter(c =>
     (region === "All" || c.region === region) &&
-    (search.trim() === "" || c.name.toLowerCase().includes(search.trim().toLowerCase()) || c.country.toLowerCase().includes(search.trim().toLowerCase()))
+    (search.trim() === "" || c.name.toLowerCase().includes(search.toLowerCase()) || c.country.toLowerCase().includes(search.toLowerCase()))
   );
-
   if (selected) return <CollegeDetail college={selected} onBack={() => setSelected(null)} />;
-
   return (
     <div style={S.screen}>
       <div style={S.header}>
         <span style={S.label}>Plan Ahead</span>
         <h1 style={{ ...S.h1, marginTop: 6, fontSize: 24 }}>Colleges</h1>
       </div>
-
       <div style={{ ...S.px, ...S.gap(14) }}>
-        <CollegeSlideshow colleges={COLLEGES.slice(0, 5)} onSelect={setSelected} />
-
+        <CollegeSlideshow colleges={scopedColleges.slice(0, 5)} onSelect={setSelected} />
         <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>
-            <Icon name="search" size={16} color="#64748B" />
-          </div>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search for a school..."
-            style={{ width: "100%", padding: "12px 14px 12px 40px", backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 12, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }}
-          />
+          <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}><Icon name="search" size={16} color="#64748B" /></div>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search for a school..."
+            style={{ width: "100%", padding: "12px 14px 12px 40px", backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 12, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
         </div>
-
-        {/* Nigerian Admissions Portals */}
-        <div style={S.card}>
-          <p style={{ ...S.label, marginBottom: 12 }}>🇳🇬 Nigerian Admissions Portals</p>
-          <div style={S.gap(8)}>
-            {[
-              { name: "JAMB CAPS / Admission Status", url: "https://efacility.jamb.gov.ng", note: "Check admission status, accept offers, print letter" },
-              { name: "WAEC Result Checker", url: "https://www.waecdirect.org", note: "Official WASSCE result checking portal" },
-              { name: "NECO Result Portal", url: "https://results.neco.gov.ng", note: "Official NECO SSCE result checking portal" },
-            ].map(p => (
-              <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer"
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", textDecoration: "none", padding: "12px 14px", backgroundColor: "#111827", borderRadius: 12, border: "1px solid #1E2A4A" }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF" }}>{p.name}</div>
-                  <div style={{ ...S.small, marginTop: 2 }}>{p.note}</div>
-                </div>
-                <Icon name="external" size={16} color="#3B82F6" />
-              </a>
-            ))}
+        {(wantsNG || showAll) && (
+          <div style={S.card}>
+            <p style={{ ...S.label, marginBottom: 12 }}>🇳🇬 Nigerian Admissions Portals</p>
+            <div style={S.gap(8)}>
+              {[
+                { name: "JAMB CAPS / Admission Status", url: "https://efacility.jamb.gov.ng", note: "Check status, accept offers, print letter" },
+                { name: "WAEC Result Checker", url: "https://www.waecdirect.org", note: "Official WASSCE result checking portal" },
+                { name: "NECO Result Portal", url: "https://results.neco.gov.ng", note: "Official NECO SSCE result checking portal" },
+              ].map(p => (
+                <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer"
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", textDecoration: "none", padding: "12px 14px", backgroundColor: "#111827", borderRadius: 12, border: "1px solid #1E2A4A" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF" }}>{p.name}</div>
+                    <div style={{ ...S.small, marginTop: 2 }}>{p.note}</div>
+                  </div>
+                  <Icon name="external" size={16} color="#3B82F6" />
+                </a>
+              ))}
+            </div>
           </div>
-          <p style={{ ...S.small, marginTop: 10 }}>These take you to the official government portals — AceBoard doesn't process admissions itself, just gets you there faster.</p>
-        </div>
-
+        )}
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
-          {COLLEGE_REGIONS.map(r => (
-            <button key={r} style={{ ...S.btnSmall(region === r), flexShrink: 0 }} onClick={() => setRegion(r)}>{r}</button>
-          ))}
+          {scopedRegions.map(r => <button key={r} style={{ ...S.btnSmall(region === r), flexShrink: 0 }} onClick={() => setRegion(r)}>{r}</button>)}
         </div>
-
         <div style={S.gap(10)}>
           {filtered.map(c => {
             const compColor = { Extreme: "#EF4444", "Very High": "#F97316", High: "#F59E0B", Moderate: "#22C55E" }[c.competitiveness] || "#3B82F6";
@@ -3981,207 +3976,86 @@ function CollegesScreen() {
               </button>
             );
           })}
+          {filtered.length === 0 && <div style={{ textAlign: "center", padding: "40px 20px" }}><p style={S.body}>No schools match your search.</p></div>}
         </div>
       </div>
     </div>
   );
 }
+
 // ── QUESTION SEARCH ───────────────────────────────────────────────────────────
-function QuestionSearchScreen({ onBack }) {
+function QuestionSearchScreen({ onBack, profile }) {
   const [examFilter, setExamFilter] = useState("All");
   const [subjectFilter, setSubjectFilter] = useState("All Subjects");
   const [keyword, setKeyword] = useState("");
   const [selected, setSelected] = useState(null);
-
-  const examOptions = ["All", ...new Set(QUESTIONS.map(q => q.exam))];
-  const subjectOptions = ["All Subjects", ...new Set(QUESTIONS.filter(q => examFilter === "All" || q.exam === examFilter).map(q => q.subject))];
-
-  const filtered = QUESTIONS.filter(q =>
+  const userExams = profile?.exams || [];
+  const scopedQs = userExams.length > 0 ? QUESTIONS.filter(q => userExams.includes(q.exam)) : QUESTIONS;
+  const examOptions = ["All", ...new Set(scopedQs.map(q => q.exam))];
+  const subjectOptions = ["All Subjects", ...new Set(scopedQs.filter(q => examFilter === "All" || q.exam === examFilter).map(q => q.subject))];
+  const filtered = scopedQs.filter(q =>
     (examFilter === "All" || q.exam === examFilter) &&
     (subjectFilter === "All Subjects" || q.subject === subjectFilter) &&
-    (keyword.trim() === "" ||
-      q.question.toLowerCase().includes(keyword.trim().toLowerCase()) ||
-      q.topic.toLowerCase().includes(keyword.trim().toLowerCase()))
+    (keyword.trim() === "" || q.question.toLowerCase().includes(keyword.toLowerCase()) || q.topic.toLowerCase().includes(keyword.toLowerCase()))
   );
-
-  if (selected) {
-    const optLabel = ["A", "B", "C", "D"];
-    return (
-      <div style={S.screen}>
-        <div style={S.header}>
-          <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
-            <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back to results</span></div>
-          </button>
-          <span style={S.label}>{selected.exam} · {selected.subject}</span>
-        </div>
-        <div style={{ ...S.px, ...S.gap(14) }}>
-          <div style={S.row(6)}>
-            <span style={S.pill()}>{selected.topic}</span>
-            <span style={S.pill("#1A1A2E", "#8B5CF6")}>{selected.difficulty}</span>
-            <span style={S.pill("#111827", "#64748B")}>{selected.year}</span>
-          </div>
-          <div style={{ ...S.card, padding: "18px" }}>
-            <p style={{ fontSize: 15, lineHeight: 1.7, color: "#E2E8F0", margin: 0, fontWeight: 500 }}>{selected.question}</p>
-          </div>
+  if (selected) return (
+    <div style={S.screen}>
+      <div style={S.header}>
+        <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 10 }}>
+          <div style={{ ...S.row(9), padding: "6px 0" }}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back to Search</span></div>
+        </button>
+      </div>
+      <div style={{ ...S.px, ...S.gap(14) }}>
+        <div style={S.row(6)}><span style={S.pill()}>{selected.topic}</span><span style={S.pill("#111827", "#64748B")}>{selected.year}</span></div>
+        <div style={{ ...S.card, padding: 18 }}><p style={{ fontSize: 15, lineHeight: 1.7, margin: 0 }}>{selected.question}</p></div>
+        {selected.image && <img src={selected.image} alt="" style={{ width: "100%", borderRadius: 12 }} />}
+        {selected.options && (
           <div style={S.gap(8)}>
             {selected.options.map((opt, i) => (
-              <div key={i} style={{
-                padding: "14px 16px", borderRadius: 12, border: "1.5px solid", display: "flex", alignItems: "center", gap: 12,
-                backgroundColor: i === selected.answer ? "#052E16" : "#0D1326", borderColor: i === selected.answer ? "#22C55E" : "#1E2A4A", color: i === selected.answer ? "#86EFAC" : "#E2E8F0"
-              }}>
-                <span style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: "#1E2A4A", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{optLabel[i]}</span>
-                <span>{opt}</span>
+              <div key={i} style={{ padding: "14px 16px", borderRadius: 12, border: "1.5px solid", fontSize: 14, display: "flex", gap: 12, alignItems: "center",
+                backgroundColor: i === selected.answer ? "#052E16" : "#0D1326", borderColor: i === selected.answer ? "#22C55E" : "#1E2A4A", color: i === selected.answer ? "#86EFAC" : "#E2E8F0" }}>
+                <span style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: "#1E2A4A", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{["A","B","C","D"][i]}</span>
+                {opt}
               </div>
             ))}
           </div>
-          <div style={{ backgroundColor: "#051A0F", border: "1px solid #14532D", borderRadius: 14, padding: 16 }}>
-            <div style={{ ...S.row(8), marginBottom: 8 }}>
-              <Icon name="check" size={16} color="#22C55E" />
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#22C55E" }}>Explanation</span>
-            </div>
-            <p style={{ ...S.body, fontSize: 13, margin: "0 0 10px" }}>{selected.explanation}</p>
-            <p style={{ fontSize: 11, color: "#374151" }}>📚 {selected.source}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ ...S.screen, overflowY: "auto" }}>
-      <div style={S.header}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
-          <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
-        </button>
-        <span style={S.label}>Question Search</span>
-        <h1 style={{ ...S.h1, marginTop: 6, fontSize: 22 }}>Find any question</h1>
-      </div>
-
-      <div style={{ ...S.px, ...S.gap(14) }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <select value={examFilter} onChange={e => { setExamFilter(e.target.value); setSubjectFilter("All Subjects"); }}
-            style={{ flex: 1, backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 13 }}>
-            {examOptions.map(e => <option key={e} value={e}>{e}</option>)}
-          </select>
-          <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)}
-            style={{ flex: 1, backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 13 }}>
-            {subjectOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-
-        <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>
-            <Icon name="search" size={16} color="#64748B" />
-          </div>
-          <input
-            value={keyword}
-            onChange={e => setKeyword(e.target.value)}
-            placeholder="Search by keyword or topic..."
-            style={{ width: "100%", padding: "12px 14px 12px 40px", backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 12, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }}
-          />
-        </div>
-
-        <p style={{ ...S.small }}>{filtered.length} question{filtered.length !== 1 ? "s" : ""} found</p>
-
-        <div style={S.gap(10)}>
-          {filtered.map((q, i) => (
-            <button key={q.id} onClick={() => setSelected(q)} style={{ ...S.cardAlt, cursor: "pointer", textAlign: "left", padding: 14, border: "1px solid #1E2A4A" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B" }}>#{i + 1}</span>
-                <span style={S.pill(q.difficulty === "Easy" ? "#052E16" : q.difficulty === "Medium" ? "#1A2E1A" : "#2D1515", q.difficulty === "Easy" ? "#22C55E" : q.difficulty === "Medium" ? "#86EFAC" : "#EF4444")}>{q.difficulty}</span>
-              </div>
-              <p style={{ fontSize: 13, color: "#E2E8F0", margin: "0 0 8px", lineHeight: 1.5 }}>{q.question.slice(0, 90)}{q.question.length > 90 ? "..." : ""}</p>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={S.small}>{q.exam} / {q.subject}</span>
-                <span style={S.small}>{q.year}</span>
-              </div>
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <div style={{ textAlign: "center", padding: "40px 20px" }}>
-              <p style={{ ...S.body }}>No questions match your search yet.</p>
-            </div>
-          )}
+        )}
+        <div style={{ backgroundColor: "#051A0F", border: "1px solid #14532D", borderRadius: 14, padding: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#22C55E", marginBottom: 8 }}>Explanation</p>
+          <p style={{ ...S.body, fontSize: 13, margin: 0 }}>{selected.explanation}</p>
         </div>
       </div>
     </div>
   );
-}
-
-// ── NOTES DATA ────────────────────────────────────────────────────────────────
-// Seed set — proof of the full flow (notes + video + test + flashcards).
-// Scaling this to cover every topic across every exam board is an ongoing content project,
-// same as the question bank — not something to fake with placeholder text.
-const NOTES = [
-  {
-    id: "n1", exam: "IGCSE", subject: "Mathematics", topic: "Probability",
-    content: "Probability measures how likely an event is to happen, on a scale from 0 (impossible) to 1 (certain).\n\nP(event) = number of favourable outcomes ÷ total number of possible outcomes.\n\nFor independent events (one doesn't affect the other), multiply their probabilities: P(A and B) = P(A) × P(B).\n\nFor combined events, probability tree diagrams help organise outcomes across multiple stages — multiply along branches, add between separate branches leading to the same result.\n\nMutually exclusive events (can't both happen at once) follow: P(A or B) = P(A) + P(B).\n\nAlways check your probabilities for a full sample space sum to 1.",
-    videoTitle: "All of Probability in 30 Minutes — GCSE Maths Tutor",
-    videoUrl: "https://www.youtube.com/watch?v=h78FV6dRETI",
-    flashcards: [
-      { q: "What is the probability scale range?", a: "0 (impossible) to 1 (certain)" },
-      { q: "How do you find P(A and B) for independent events?", a: "Multiply: P(A) × P(B)" },
-      { q: "What's the rule for mutually exclusive events?", a: "P(A or B) = P(A) + P(B)" },
-      { q: "On a probability tree, what do you do along a branch vs between branches?", a: "Multiply along a branch, add between separate branches" },
-    ],
-  },
-  {
-    id: "n2", exam: "IGCSE", subject: "Chemistry", topic: "Acids & Bases",
-    content: "Acids release H+ ions in aqueous solution; bases (or alkalis, when soluble) release OH- ions.\n\npH scale runs 0–14: below 7 is acidic, 7 is neutral, above 7 is alkaline/basic.\n\nNeutralisation: acid + base → salt + water. This is why antacids (bases) treat excess stomach acid.\n\nStrong acids/bases fully ionise in water (e.g. HCl); weak acids/bases only partially ionise (e.g. ethanoic acid) — strength is about ionisation, not concentration.\n\nIndicators like litmus (red in acid, blue in alkali) or universal indicator (full colour range matching pH) are used to test pH practically.",
-    videoTitle: "Acids and Bases - Basic Introduction — The Organic Chemistry Tutor",
-    videoUrl: "https://www.youtube.com/watch?v=owVZiKnnPME",
-    flashcards: [
-      { q: "What ion do acids release in water?", a: "H+ (hydrogen ions)" },
-      { q: "What pH value is neutral?", a: "7" },
-      { q: "What's the general equation for neutralisation?", a: "Acid + Base → Salt + Water" },
-      { q: "What's the difference between a strong and weak acid?", a: "Strong acids fully ionise in water; weak acids only partially ionise" },
-    ],
-  },
-  {
-    id: "n3", exam: "WAEC", subject: "Biology", topic: "Cell Biology",
-    content: "The cell is the basic structural and functional unit of all living organisms.\n\nAnimal cells contain: nucleus (controls activities, holds DNA), cytoplasm (site of reactions), cell membrane (controls what enters/exits), mitochondria (respiration/ATP production), ribosomes (protein synthesis).\n\nPlant cells have all of the above, plus: cell wall (made of cellulose, gives structural support), chloroplasts (site of photosynthesis, contain chlorophyll), and a large permanent vacuole (maintains turgor pressure, stores cell sap).\n\nProkaryotic cells (bacteria) lack a nucleus and membrane-bound organelles — their DNA floats freely in the cytoplasm.\n\nUnderstanding these differences is a common WAEC exam focus: comparing plant vs animal cells, and identifying organelles from labelled diagrams.",
-    videoTitle: "GCSE Biology - Cell Types and Cell Structure — Cognito",
-    videoUrl: "https://www.youtube.com/watch?v=qHkUOlC8Nbo",
-    flashcards: [
-      { q: "What are three structures found in plant cells but NOT animal cells?", a: "Cell wall, chloroplasts, and a large permanent vacuole" },
-      { q: "What is the function of the mitochondria?", a: "Site of respiration — produces ATP (energy) for the cell" },
-      { q: "What is the function of ribosomes?", a: "Protein synthesis" },
-      { q: "What's the key difference between prokaryotic and eukaryotic cells?", a: "Prokaryotic cells (like bacteria) lack a nucleus and membrane-bound organelles" },
-    ],
-  },
-];
-
-const BOOKS = [
-  { exam: "WAEC", title: "WAEC Syllabus (Official)", note: "Free official syllabus per subject — the authoritative source for exactly what's examinable.", url: "https://www.waecnigeria.org" },
-  { exam: "JAMB", title: "JAMB UTME Syllabus (Official)", note: "Official JAMB brochure and subject syllabus, updated yearly.", url: "https://www.jamb.gov.ng" },
-  { exam: "NECO", title: "NECO Syllabus (Official)", note: "Official NECO subject syllabus documents.", url: "https://www.neco.gov.ng" },
-  { exam: "IGCSE", title: "Cambridge IGCSE Syllabus (Official)", note: "Free official syllabus documents for every Cambridge IGCSE subject.", url: "https://www.cambridgeinternational.org" },
-];
-
-// ── FLASHCARD VIEWER (for Notes topics) ──────────────────────────────────────
-function NoteFlashcards({ cards, onBack }) {
-  const [idx, setIdx] = useState(0);
-  const [flipped, setFlipped] = useState(false);
   return (
     <div style={S.screen}>
       <div style={S.header}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
-          <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0 }}>
+          <div style={{ ...S.row(9), padding: "6px 0" }}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
         </button>
-        <span style={S.label}>Flashcards</span>
+        <div style={{ marginTop: 10 }}><span style={S.label}>Explore</span><h1 style={{ ...S.h1, marginTop: 6, fontSize: 24 }}>Search Questions</h1></div>
       </div>
-      <div style={{ ...S.px, ...S.gap(16) }}>
-        <div style={{ textAlign: "center", fontSize: 13, color: "#94A3B8" }}>Card {idx + 1} of {cards.length} — tap to flip</div>
-        <button onClick={() => setFlipped(f => !f)}
-          style={{ backgroundColor: flipped ? "#0D1E3D" : "#161D33", border: `1.5px solid ${flipped ? "#3B82F6" : "#1E2A4A"}`, borderRadius: 18, padding: "32px 20px", cursor: "pointer", minHeight: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: flipped ? "#3B82F6" : "#94A3B8" }}>{flipped ? "ANSWER" : "QUESTION"}</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "#F0F2FF", lineHeight: 1.6, textAlign: "center" }}>{flipped ? cards[idx].a : cards[idx].q}</div>
-        </button>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => { setIdx(i => Math.max(i - 1, 0)); setFlipped(false); }} disabled={idx === 0}
-            style={{ flex: 1, backgroundColor: "transparent", border: "1.5px solid #1E2A4A", borderRadius: 12, padding: "12px", color: "#94A3B8", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: idx === 0 ? 0.3 : 1 }}>← Prev</button>
-          <button onClick={() => { setIdx(i => Math.min(i + 1, cards.length - 1)); setFlipped(false); }} disabled={idx === cards.length - 1}
-            style={{ flex: 1, backgroundColor: "#3B82F6", border: "none", borderRadius: 12, padding: "12px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: idx === cards.length - 1 ? 0.3 : 1 }}>Next →</button>
+      <div style={{ ...S.px, ...S.gap(12) }}>
+        <div style={{ position: "relative" }}>
+          <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}><Icon name="search" size={16} color="#64748B" /></div>
+          <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="Search questions or topics..."
+            style={{ width: "100%", padding: "12px 14px 12px 40px", backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 12, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+        </div>
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+          {examOptions.map(e => <button key={e} onClick={() => { setExamFilter(e); setSubjectFilter("All Subjects"); }} style={{ ...S.btnSmall(examFilter === e), flexShrink: 0 }}>{e}</button>)}
+        </div>
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+          {subjectOptions.map(s => <button key={s} onClick={() => setSubjectFilter(s)} style={{ ...S.btnSmall(subjectFilter === s), flexShrink: 0, fontSize: 11 }}>{s}</button>)}
+        </div>
+        <p style={S.small}>{filtered.length} question{filtered.length !== 1 ? "s" : ""} found</p>
+        <div style={S.gap(8)}>
+          {filtered.slice(0, 50).map(q => (
+            <button key={q.id} onClick={() => setSelected(q)} style={{ ...S.cardAlt, display: "flex", flexDirection: "column", gap: 6, cursor: "pointer", textAlign: "left", padding: 14 }}>
+              <div style={S.row(6)}><span style={S.pill()}>{q.exam}</span><span style={S.pill("#111827", "#64748B")}>{q.subject}</span>{q.year && <span style={S.pill("#111827", "#374151")}>{q.year}</span>}</div>
+              <p style={{ fontSize: 13, color: "#E2E8F0", margin: 0, lineHeight: 1.5 }}>{q.question.length > 120 ? q.question.slice(0, 120) + "…" : q.question}</p>
+            </button>
+          ))}
+          {filtered.length === 0 && <p style={{ ...S.body, textAlign: "center", padding: "30px 0" }}>No questions found.</p>}
         </div>
       </div>
     </div>
@@ -4189,15 +4063,17 @@ function NoteFlashcards({ cards, onBack }) {
 }
 
 // ── NOTES SCREEN ──────────────────────────────────────────────────────────────
-function NotesScreen({ onBack, onTestTopic }) {
+function NotesScreen({ onBack, onTestTopic, profile }) {
   const [exam, setExam] = useState(null);
   const [subject, setSubject] = useState(null);
   const [topicNote, setTopicNote] = useState(null);
   const [showFlashcards, setShowFlashcards] = useState(false);
-
-  const examOptions = [...new Set(NOTES.map(n => n.exam))];
-  const subjectOptions = exam ? [...new Set(NOTES.filter(n => n.exam === exam).map(n => n.subject))] : [];
-  const topicOptions = exam && subject ? NOTES.filter(n => n.exam === exam && n.subject === subject) : [];
+  const userExams = profile?.exams || [];
+  const scopedNotes = userExams.length > 0 ? NOTES.filter(n => userExams.includes(n.exam)) : NOTES;
+  const scopedBooks = userExams.length > 0 ? BOOKS.filter(b => userExams.includes(b.exam)) : BOOKS;
+  const examOptions = [...new Set(scopedNotes.map(n => n.exam))];
+  const subjectOptions = exam ? [...new Set(scopedNotes.filter(n => n.exam === exam).map(n => n.subject))] : [];
+  const topicOptions = exam && subject ? scopedNotes.filter(n => n.exam === exam && n.subject === subject) : [];
 
   if (showFlashcards && topicNote) {
     return <NoteFlashcards cards={topicNote.flashcards} onBack={() => setShowFlashcards(false)} />;
@@ -4209,7 +4085,7 @@ function NotesScreen({ onBack, onTestTopic }) {
       <div style={{ ...S.screen, overflowY: "auto" }}>
         <div style={S.header}>
           <button onClick={() => setTopicNote(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
-            <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
+            <div style={{ ...S.row(9), padding: "6px 0" }}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
           </button>
           <span style={S.label}>{topicNote.exam} · {topicNote.subject}</span>
           <h1 style={{ ...S.h1, marginTop: 6, fontSize: 22 }}>{topicNote.topic}</h1>
@@ -4242,7 +4118,7 @@ function NotesScreen({ onBack, onTestTopic }) {
     <div style={{ ...S.screen, overflowY: "auto" }}>
       <div style={S.header}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0, marginBottom: 16 }}>
-          <div style={S.row(6)}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
+          <div style={{ ...S.row(9), padding: "6px 0" }}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Back</span></div>
         </button>
         <span style={S.label}>Notes & Books</span>
         <h1 style={{ ...S.h1, marginTop: 6, fontSize: 22 }}>{!exam ? "Choose an exam" : !subject ? "Choose a subject" : "Choose a topic"}</h1>
@@ -4258,7 +4134,7 @@ function NotesScreen({ onBack, onTestTopic }) {
           ))}
           <div style={{ height: 8 }} />
           <p style={{ ...S.label, marginBottom: 4 }}>📚 Recommended Reading</p>
-          {BOOKS.map(b => (
+          {scopedBooks.map(b => (
             <a key={b.title} href={b.url} target="_blank" rel="noopener noreferrer" style={{ ...S.cardAlt, textDecoration: "none", display: "block", padding: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF" }}>{b.title}</div>
               <div style={{ ...S.small, marginTop: 4 }}>{b.note}</div>
@@ -4809,54 +4685,264 @@ function AIStudyCoach({ onBack }) {
   );
 }
 // ── ABOUT SCREEN ──────────────────────────────────────────────────────────────
-function AboutScreen({ user, onSignOut }) {
+function AboutScreen({ user, onSignOut, profile, missedQuestions }) {
+  const [screen, setScreen] = useState("main"); // main | review | deleteConfirm
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const missedCount = Object.keys(missedQuestions || {}).length;
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      // Delete Firestore user document
+      const ref = doc(db, "users", user.uid);
+      await deleteDoc(ref);
+      // Delete Firebase Auth account
+      await user.delete();
+      // onSignOut will fire automatically via onAuthStateChanged
+    } catch (err) {
+      console.error("Delete error:", err);
+      if (err.code === "auth/requires-recent-login") {
+        setDeleteError("For security, please sign out and sign back in, then try deleting again.");
+      } else {
+        setDeleteError("Something went wrong deleting your account. Try again.");
+      }
+      setDeleting(false);
+    }
+  };
+
+  if (screen === "review") {
+    return <MissedQuestionsScreen missedQuestions={missedQuestions} profile={profile} onBack={() => setScreen("main")} />;
+  }
+
   return (
-    <div style={S.screen}>
+    <div style={{ ...S.screen, overflowY: "auto" }}>
       <div style={S.header}>
         <div style={S.logo}>Ace<span style={S.logoAccent}>Board</span></div>
-        <p style={{ ...S.body, marginTop: 8, fontSize: 13 }}>v1.0.0 MVP — Built for students, everywhere</p>
+        <p style={{ ...S.body, marginTop: 4, fontSize: 13 }}>v1.0 · Built for students, everywhere</p>
       </div>
+
       <div style={{ ...S.px, ...S.gap(14) }}>
+        {/* Profile card */}
         {user && (
           <div style={{ ...S.card, ...S.row(12) }}>
             {user.photoURL ? (
-              <img src={user.photoURL} alt={user.displayName} style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0 }} />
+              <img src={user.photoURL} alt="" style={{ width: 48, height: 48, borderRadius: 14, flexShrink: 0 }} />
             ) : (
-              <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#1E3A5F", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18, fontWeight: 700 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: "#1E3A5F", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 20, fontWeight: 800, color: "#3B82F6" }}>
                 {(user.displayName || user.email || "?")[0].toUpperCase()}
               </div>
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#F0F2FF" }}>{user.displayName || "Account"}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>{user.displayName || "Student"}</div>
               <div style={{ ...S.small, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</div>
+              {profile?.exams?.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                  {profile.exams.map(e => <span key={e} style={S.pill()}>{e}</span>)}
+                </div>
+              )}
             </div>
-            <button onClick={onSignOut} style={{ background: "none", border: "1px solid #1E2A4A", borderRadius: 10, padding: "8px 12px", color: "#94A3B8", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
-              Sign out
-            </button>
           </div>
         )}
 
-        <div style={{ ...S.card, background: "linear-gradient(135deg, #0A1628 0%, #0D1E3D 100%)", borderColor: "#1E3A5F" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>👨🏾‍💻</div>
-          <h2 style={{ ...S.h2, marginBottom: 8 }}>Built by Judah Kayode</h2>
-          <p style={{ ...S.body, fontSize: 13, marginBottom: 16 }}>
-            Nigerian secondary school student, CS aspirant & developer. AceBoard was built to solve a real gap in accessible, structured exam prep for students everywhere.
-          </p>
-          <div style={S.divider} />
-          <p style={{ ...S.body, fontSize: 12, fontStyle: "italic" }}>
-            "Millions of students prepare for major exams yearly with no structured digital resource. AceBoard changes that."
-          </p>
+        {/* Review missed questions */}
+        <button onClick={() => setScreen("review")}
+          style={{ ...S.card, display: "flex", alignItems: "center", gap: 14, cursor: "pointer", textAlign: "left" }}>
+          <div style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: "#2D1515", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Icon name="bookmark" size={20} color="#EF4444" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#F0F2FF" }}>Review Missed Questions</div>
+            <div style={S.small}>{missedCount > 0 ? `${missedCount} question${missedCount === 1 ? "" : "s"} to review` : "No missed questions yet — keep practicing!"}</div>
+          </div>
+          <Icon name="chevron_right" size={18} color="#4A5568" />
+        </button>
+
+        {/* Premium coming soon */}
+        <div style={{ ...S.card, background: "linear-gradient(135deg, #0A0F1E 0%, #0D1E3D 60%, #0A1628 100%)", border: "1px solid #1E3A5F", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle, rgba(59,130,246,0.15), transparent)", pointerEvents: "none" }} />
+          <div style={{ ...S.row(10), marginBottom: 14 }}>
+            <span style={{ fontSize: 22 }}>⚡</span>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#F0F2FF" }}>AceBoard Premium</div>
+              <span style={{ fontSize: 10, fontWeight: 700, backgroundColor: "#1E3A5F", color: "#3B82F6", padding: "2px 8px", borderRadius: 20, letterSpacing: "0.05em" }}>COMING SOON</span>
+            </div>
+          </div>
+          {[
+            { icon: "⚡", text: "Unlimited AI study sessions — no daily cap" },
+            { icon: "📊", text: "Advanced analytics & readiness predictions" },
+            { icon: "🏆", text: "Mock full-length exams with timed conditions" },
+            { icon: "📚", text: "Full question banks for every exam year" },
+            { icon: "🎯", text: "Personalised weak-topic drill mode" },
+            { icon: "🔔", text: "Daily reminders & streak protection" },
+          ].map(b => (
+            <div key={b.text} style={{ ...S.row(10), marginBottom: 10, opacity: 0.85 }}>
+              <span style={{ fontSize: 16 }}>{b.icon}</span>
+              <span style={{ fontSize: 13, color: "#C9D2E8" }}>{b.text}</span>
+            </div>
+          ))}
+          <button style={{ ...S.btnPrimary, marginTop: 6, opacity: 0.6, cursor: "not-allowed" }} disabled>
+            Notify me when it's live
+          </button>
         </div>
 
+        {/* Settings row */}
         <div style={S.card}>
-          <p style={{ ...S.label, marginBottom: 12 }}>Supported Exams</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {EXAMS.map(e => <span key={e} style={S.pill()}>{e}</span>)}
+          <p style={{ ...S.label, marginBottom: 12 }}>Account</p>
+          <div style={S.gap(4)}>
+            {[
+              { label: "Sign out", icon: "external", action: onSignOut, color: "#94A3B8" },
+            ].map(item => (
+              <button key={item.label} onClick={item.action}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "12px 0", background: "none", border: "none", cursor: "pointer", borderBottom: "1px solid #0D1326" }}>
+                <span style={{ fontSize: 14, color: item.color || "#F0F2FF" }}>{item.label}</span>
+                <Icon name="chevron_right" size={16} color="#4A5568" />
+              </button>
+            ))}
+            <button onClick={() => setScreen("deleteConfirm")}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "12px 0", background: "none", border: "none", cursor: "pointer" }}>
+              <span style={{ fontSize: 14, color: "#EF4444" }}>Delete Account</span>
+              <Icon name="chevron_right" size={16} color="#4A5568" />
+            </button>
           </div>
         </div>
 
-        <div style={{ textAlign: "center", padding: "12px 0 4px" }}>
-          <p style={{ fontSize: 12, color: "#1E2A4A" }}>AceBoard © 2026</p>
+        <div style={{ textAlign: "center", padding: "4px 0 16px" }}>
+          <p style={{ fontSize: 11, color: "#1E2A4A" }}>AceBoard © 2026 · Built by Judah Kayode</p>
+        </div>
+      </div>
+
+      {/* Delete confirm modal */}
+      {screen === "deleteConfirm" && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.8)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div style={{ width: "100%", maxWidth: 430, backgroundColor: "#0D1326", borderRadius: "20px 20px 0 0", padding: "28px 24px 40px", border: "1px solid #1E2A4A" }}>
+            <div style={{ fontSize: 28, textAlign: "center", marginBottom: 12 }}>⚠️</div>
+            <h2 style={{ ...S.h2, textAlign: "center", marginBottom: 8 }}>Delete Account?</h2>
+            <p style={{ ...S.body, textAlign: "center", marginBottom: 20, fontSize: 13 }}>
+              This permanently deletes your account, all your progress, streaks, and saved questions. This cannot be undone.
+            </p>
+            {deleteError && <p style={{ color: "#EF4444", fontSize: 13, textAlign: "center", marginBottom: 12 }}>{deleteError}</p>}
+            <div style={S.gap(10)}>
+              <button onClick={handleDeleteAccount} disabled={deleting}
+                style={{ ...S.btnPrimary, backgroundColor: "#EF4444", opacity: deleting ? 0.5 : 1 }}>
+                {deleting ? "Deleting…" : "Yes, delete my account"}
+              </button>
+              <button onClick={() => { setScreen("main"); setDeleteError(""); }}
+                style={{ ...S.btnPrimary, backgroundColor: "transparent", border: "1.5px solid #1E2A4A", color: "#94A3B8" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MISSED QUESTIONS REVIEW ──────────────────────────────────────────────────
+function MissedQuestionsScreen({ missedQuestions, profile, onBack }) {
+  const [exam, setExam] = useState(null);
+  const [subject, setSubject] = useState(null);
+  const [idx, setIdx] = useState(0);
+  const missedIds = Object.keys(missedQuestions || {}).map(id => isNaN(id) ? id : Number(id));
+  const missedQs = QUESTIONS.filter(q => missedIds.includes(q.id));
+  const userExams = profile?.exams || [];
+  const examCounts = userExams.map(e => ({ exam: e, count: missedQs.filter(q => q.exam === e).length })).filter(e => e.count > 0);
+
+  if (!exam) return (
+    <div style={S.screen}>
+      <div style={S.header}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0 }}>
+          <div style={{ ...S.row(9), padding: "6px 0" }}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>Account</span></div>
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+          <span style={S.label}>Review</span>
+          <InfoTooltip text="Every question you have gotten wrong lands here. Get one right again in practice and it automatically clears from this list." />
+        </div>
+        <h1 style={{ ...S.h1, marginTop: 6, fontSize: 24 }}>Missed Questions</h1>
+      </div>
+      <div style={{ ...S.px, ...S.gap(12) }}>
+        {examCounts.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "60px 20px" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+            <p style={S.body}>No missed questions — keep practicing and any wrong answers will show up here.</p>
+          </div>
+        ) : examCounts.map(({ exam: e, count }) => (
+          <button key={e} onClick={() => setExam(e)} style={{ ...S.cardAlt, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left", padding: 16 }}>
+            <ExamLogo exam={e} size={36} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>{e}</div>
+              <div style={S.small}>{count} missed question{count === 1 ? "" : "s"}</div>
+            </div>
+            <Icon name="chevron_right" size={18} color="#4A5568" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const examMissed = missedQs.filter(q => q.exam === exam);
+  const subjectCounts = [...new Set(examMissed.map(q => q.subject))].map(s => ({ subject: s, count: examMissed.filter(q => q.subject === s).length }));
+
+  if (!subject) return (
+    <div style={S.screen}>
+      <div style={S.header}>
+        <button onClick={() => setExam(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0 }}>
+          <div style={{ ...S.row(9), padding: "6px 0" }}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>All Exams</span></div>
+        </button>
+        <span style={{ ...S.label, marginTop: 10, display: "block" }}>{exam}</span>
+        <h1 style={{ ...S.h1, marginTop: 6, fontSize: 24 }}>Pick a subject</h1>
+      </div>
+      <div style={{ ...S.px, ...S.gap(12) }}>
+        {subjectCounts.map(({ subject: s, count }) => (
+          <button key={s} onClick={() => { setSubject(s); setIdx(0); }} style={{ ...S.cardAlt, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", padding: 16 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "#F0F2FF" }}>{s}</span>
+            <span style={S.pill("#2D1515", "#EF4444")}>{count}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const list = examMissed.filter(q => q.subject === subject);
+  const q = list[idx];
+  return (
+    <div style={S.screen}>
+      <div style={{ ...S.header, paddingBottom: 12 }}>
+        <button onClick={() => { setSubject(null); setIdx(0); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#3B82F6", padding: 0 }}>
+          <div style={{ ...S.row(9), padding: "6px 0" }}><Icon name="arrow_left" size={18} color="#3B82F6" /><span style={{ fontSize: 14, fontWeight: 600 }}>All Subjects</span></div>
+        </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, marginBottom: 12 }}>
+          <span style={S.label}>{exam} · {subject}</span>
+          <span style={S.small}>{idx + 1} of {list.length}</span>
+        </div>
+        <div style={S.progressBar(((idx + 1) / list.length) * 100)}><div style={S.progressFill(((idx + 1) / list.length) * 100, "#EF4444")} /></div>
+      </div>
+      <div style={{ ...S.px, ...S.gap(14) }}>
+        <div style={S.row(6)}><span style={S.pill()}>{q.topic}</span>{q.year && <span style={S.pill("#111827", "#64748B")}>{q.year}</span>}</div>
+        <div style={{ ...S.card, padding: 18 }}><p style={{ fontSize: 15, lineHeight: 1.7, color: "#E2E8F0", margin: 0, fontWeight: 500 }}>{q.question}</p></div>
+        {q.image && <img src={q.image} alt="" style={{ width: "100%", borderRadius: 12, border: "1px solid #1E2A4A" }} />}
+        <div style={S.gap(8)}>
+          {(q.options || []).map((opt, i) => (
+            <div key={i} style={{ padding: "14px 16px", borderRadius: 12, border: "1.5px solid", fontSize: 14, display: "flex", gap: 12, alignItems: "center",
+              backgroundColor: i === q.answer ? "#052E16" : "#0D1326", borderColor: i === q.answer ? "#22C55E" : "#1E2A4A", color: i === q.answer ? "#86EFAC" : "#E2E8F0" }}>
+              <span style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: "#1E2A4A", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{["A","B","C","D"][i]}</span>
+              {opt}
+            </div>
+          ))}
+        </div>
+        <div style={{ backgroundColor: "#051A0F", border: "1px solid #14532D", borderRadius: 14, padding: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#22C55E", marginBottom: 8 }}>Explanation</p>
+          <p style={{ ...S.body, fontSize: 13, margin: "0 0 8px" }}>{q.explanation}</p>
+          {q.source && <p style={{ fontSize: 11, color: "#374151" }}>📚 {q.source}</p>}
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setIdx(i => Math.max(i - 1, 0))} disabled={idx === 0}
+            style={{ flex: 1, backgroundColor: "transparent", border: "1.5px solid #1E2A4A", borderRadius: 12, padding: 12, color: "#94A3B8", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: idx === 0 ? 0.3 : 1 }}>← Prev</button>
+          <button onClick={() => setIdx(i => Math.min(i + 1, list.length - 1))} disabled={idx === list.length - 1}
+            style={{ flex: 1, backgroundColor: "#3B82F6", border: "none", borderRadius: 12, padding: 12, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: idx === list.length - 1 ? 0.3 : 1 }}>Next →</button>
         </div>
       </div>
     </div>
@@ -4900,8 +4986,14 @@ function SignInScreen({ onSignedIn }) {
       const msg =
         err.code === "auth/email-already-in-use" ? "That email's already registered. Try logging in instead." :
         err.code === "auth/invalid-credential" ? "Wrong email or password." :
-        err.code === "auth/weak-password" ? "Password should be at least 6 characters." :
-        "Something went wrong. Try again.";
+        err.code === "auth/wrong-password" ? "Wrong email or password." :
+        err.code === "auth/user-not-found" ? "No account found. Try signing up instead." :
+        err.code === "auth/weak-password" ? "Password must be at least 6 characters." :
+        err.code === "auth/invalid-email" ? "That doesn't look like a valid email address." :
+        err.code === "auth/operation-not-allowed" ? "Email sign-in isn't enabled — contact support." :
+        err.code === "auth/network-request-failed" ? "No internet — check your connection and try again." :
+        err.code === "auth/too-many-requests" ? "Too many attempts — wait a moment and try again." :
+        `Something went wrong (${err.code || "unknown"}). Try again.`;
       setError(msg);
     } finally {
       setLoading(false);
@@ -5715,7 +5807,8 @@ const [onboarded, setOnboarded] = useState(false);
   const [bookmarks, setBookmarks] = useState([]);
   const [stats, setStats] = useState({ total: 0, correct: 0 });
   const [dailyActivity, setDailyActivity] = useState({}); // { "YYYY-MM-DD": { total, correct } }
-  const [subjectStats, setSubjectStats] = useState({}); // { "EXAM::Subject": { log: [boolean, ...] } } — recency-weighted accuracy source
+  const [subjectStats, setSubjectStats] = useState({});
+  const [missedQuestions, setMissedQuestions] = useState({});
     const [satActiveTest, setSatActiveTest] = useState(null);
       const [satCompletedTests, setSatCompletedTests] = useState([]);
   const [viewportWidth, setViewportWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 430);
@@ -5753,6 +5846,7 @@ const [onboarded, setOnboarded] = useState(false);
             setStats(data.stats || { total: 0, correct: 0 });
             setDailyActivity(data.dailyActivity || {});
             setSubjectStats(data.subjectStats || {});
+            setMissedQuestions(data.missedQuestions || {});
                         setSatActiveTest(data.satActiveTest || null);
             setOnboarded(!!data.profile);
           } else {
@@ -5775,8 +5869,8 @@ const [onboarded, setOnboarded] = useState(false);
     useEffect(() => {
     if (!user || !profile) return;
     const ref = doc(db, "users", user.uid);
-        setDoc(ref, { profile, bookmarks, stats, dailyActivity, subjectStats, satActiveTest, satCompletedTests, email: user.email, name: user.displayName }, { merge: true }).catch(err => console.error("Save failed:", err));
-  }, [user, profile, bookmarks, stats, dailyActivity, subjectStats, satActiveTest, satCompletedTests]);
+        setDoc(ref, { profile, bookmarks, stats, dailyActivity, subjectStats, missedQuestions, satActiveTest, satCompletedTests, email: user.email, name: user.displayName }, { merge: true }).catch(err => console.error("Save failed:", err));
+  }, [user, profile, bookmarks, stats, dailyActivity, subjectStats, missedQuestions, satActiveTest, satCompletedTests]);
 
     const handleSignedIn = (firebaseUser) => {
     setUser(firebaseUser);
@@ -5839,6 +5933,14 @@ const [onboarded, setOnboarded] = useState(false);
         const existingLog = next[key]?.log || [];
         const updatedLog = [...existingLog, a.correct].slice(-50); // cap history at last 50 attempts
         next[key] = { log: updatedLog };
+      });
+      return next;
+    });
+    setMissedQuestions(prev => {
+      const next = { ...prev };
+      answers.forEach(a => {
+        if (a.correct) delete next[a.qid];
+        else next[a.qid] = true;
       });
       return next;
     });
@@ -5969,13 +6071,13 @@ const [onboarded, setOnboarded] = useState(false);
 
   if (screen === "search") return (
     <div style={shellStyle}>
-      <QuestionSearchScreen onBack={() => setScreen("home")} />
+      <QuestionSearchScreen onBack={() => setScreen("home")} profile={profile} />
     </div>
   );
 
   if (screen === "notes") return (
     <div style={shellStyle}>
-      <NotesScreen onBack={() => setScreen("home")} onTestTopic={handleTestTopic} />
+      <NotesScreen onBack={() => setScreen("home")} onTestTopic={handleTestTopic} profile={profile} />
     </div>
   );
     if (screen === "selectSatTest") return (
@@ -6023,9 +6125,9 @@ const [onboarded, setOnboarded] = useState(false);
       {tab === "home" && <HomeScreen onStart={handleStart} onSearch={() => setScreen("search")} onNotes={() => setScreen("notes")} bookmarks={bookmarks} stats={stats} profile={profile} dailyActivity={dailyActivity} subjectStats={subjectStats} />}
       {tab === "analytics" && <AnalyticsScreen stats={stats} profile={profile} dailyActivity={dailyActivity} subjectStats={subjectStats} />}
       {tab === "coach" && <AIHub onBack={() => setTab("home")} />}
-      {tab === "colleges" && <CollegesScreen />}
+      {tab === "colleges" && <CollegesScreen profile={profile} />}
       {tab === "bookmarks" && <BookmarksScreen bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onStartBookmarkQuiz={() => handleStart("practice")} />}
-      {tab === "about" && <AboutScreen user={user} onSignOut={handleSignOut} />}
+      {tab === "about" && <AboutScreen user={user} onSignOut={handleSignOut} profile={profile} missedQuestions={missedQuestions} />}
 
       <nav style={{ ...S.nav, maxWidth: Math.min(shellMaxWidth, 600) }}>
         {navItems.map(({ id, label, icon }) => (
