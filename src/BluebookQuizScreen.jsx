@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { getQuestionType } from "./content/index.js";
 
 /* =========================================================================
    BLUEBOOK-STYLE SAT QUIZ ENGINE FOR ACEBOARD
@@ -422,7 +423,8 @@ function toggleEliminated(optionIndex) {
   const startedAtRef = useRef(Date.now());
 
   const q = questions[currentIndex];
-  const isMcq = q?.answerType !== "gridIn";
+  const questionType = getQuestionType(q);
+  const isMcq = questionType === "mcq";
   function startDrag() {
   isDraggingRef.current = true;
   document.body.style.userSelect = "none";
@@ -472,7 +474,7 @@ useEffect(() => {
 
   useEffect(() => {
     // sync grid-in text field with stored answer when navigating
-    if (q && q.answerType === "gridIn") {
+    if (q && ["gridIn", "numeric"].includes(getQuestionType(q))) {
       setGridInValue(answers[q.id] ?? "");
     }
   }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -810,7 +812,7 @@ Mark for Review
           )}
 
                     <div style={{ fontSize: 16, lineHeight: 1.6, color: "#1A1A1A", marginBottom: 24, fontWeight: 500, fontFamily: TOKENS.serif }}>
-            {q.question}
+            {q.question ?? q.stem}
           </div>
 
           {isMcq ? (
@@ -1281,7 +1283,7 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
       const given = finalAnswers[q.id];
       if (given === undefined || given === "") return acc;
       const isCorrect =
-        q.answerType === "gridIn"
+        ["gridIn", "numeric"].includes(getQuestionType(q))
           ? String(given).trim() === String(q.answer).trim()
           : given === q.answer;
       return acc + (isCorrect ? 1 : 0);
