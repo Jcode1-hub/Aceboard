@@ -1,0 +1,2 @@
+id,exam,year,subject,topic,difficulty,questionType,question,options,answer,explanation,revision,contentRights,rightsStatus,publicationStatus,provenance
+fixture-csv-mcq,JAMB,2026,Physics,Fixture electricity,Easy,mcq,"Which material conducts electricity?","[""Copper"",""Rubber""]",0,"Copper is a conductor.",1,permitted,verified,draft,"{""kind"":""aceboard-original"",""sourceId"":""aceboard-original-content"",""createdBy"":""fixture-author"",""acquisitionMethod"":""original-authorship""}"

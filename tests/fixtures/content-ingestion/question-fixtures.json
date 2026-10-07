@@ -1,0 +1,100 @@
+[
+  {
+    "id": "fixture-original-mcq",
+    "exam": "JAMB",
+    "year": 2026,
+    "subject": "Physics",
+    "topic": "Fixture mechanics",
+    "difficulty": "Medium",
+    "questionType": "mcq",
+    "question": "Which quantity has the SI unit newton?",
+    "options": ["Force", "Energy"],
+    "answer": 0,
+    "explanation": "Force is measured in newtons.",
+    "revision": 1,
+    "contentRights": "permitted",
+    "rightsStatus": "verified",
+    "publicationStatus": "approved",
+    "provenance": { "kind": "aceboard-original", "sourceId": "aceboard-original-content", "createdBy": "fixture-author", "acquisitionMethod": "original-authorship", "lastReviewedAt": "2026-10-07" }
+  },
+  {
+    "id": "fixture-licensed-mcq",
+    "exam": "JAMB",
+    "year": 2026,
+    "subject": "Physics",
+    "topic": "Fixture energy",
+    "difficulty": "Easy",
+    "questionType": "mcq",
+    "question": "Which quantity is measured in joules?",
+    "options": ["Energy", "Current"],
+    "answer": 0,
+    "explanation": "The joule is a unit of energy.",
+    "revision": 1,
+    "contentRights": "licensed",
+    "rightsStatus": "verified",
+    "publicationStatus": "approved",
+    "provenance": { "kind": "licensed", "sourceId": "fixture-licensed-source", "licenseId": "fixture-license", "createdBy": "fixture-provider", "acquisitionMethod": "licensed-delivery", "attribution": "Fixture licensed source", "lastReviewedAt": "2026-10-07" }
+  },
+  {
+    "id": "fixture-missing-provenance",
+    "exam": "JAMB", "subject": "Physics", "topic": "Fixture motion", "difficulty": "Medium", "questionType": "mcq",
+    "question": "Which quantity describes change in position?", "options": ["Displacement", "Mass"], "answer": 0,
+    "explanation": "Displacement describes a change in position.", "revision": 1, "contentRights": "unknown", "rightsStatus": "unknown", "publicationStatus": "draft"
+  },
+  {
+    "id": "fixture-unknown-rights",
+    "exam": "JAMB", "subject": "Physics", "topic": "Fixture waves", "difficulty": "Medium", "questionType": "mcq",
+    "question": "Which quantity is measured in hertz?", "options": ["Frequency", "Distance"], "answer": 0,
+    "explanation": "Hertz measures frequency.", "revision": 1, "contentRights": "unknown", "rightsStatus": "unknown", "publicationStatus": "approved",
+    "provenance": { "kind": "official", "sourceId": "jamb-ibass-e-syllabus", "createdBy": "fixture-researcher", "acquisitionMethod": "public-reference", "attribution": "JAMB IBASS" }
+  },
+  {
+    "id": 2001,
+    "exam": "JAMB", "subject": "Physics", "topic": "Fixture duplicate id", "difficulty": "Easy", "questionType": "mcq",
+    "question": "Fixture with an existing catalog identifier?", "options": ["A", "B"], "answer": 0,
+    "explanation": "This synthetic record tests stable ID collision detection.", "revision": 1, "contentRights": "permitted", "rightsStatus": "verified", "publicationStatus": "draft",
+    "provenance": { "kind": "aceboard-original", "sourceId": "aceboard-original-content", "createdBy": "fixture-author", "acquisitionMethod": "original-authorship" }
+  },
+  {
+    "id": "fixture-content-duplicate",
+    "exam": "JAMB", "year": 2026, "subject": "Physics", "topic": "Fixture mechanics", "difficulty": "Medium", "questionType": "mcq",
+    "question": "Which quantity has the SI unit newton?", "options": ["Energy", "Force"], "answer": 1,
+    "explanation": "Reordered options still match the same normalized content fingerprint.", "revision": 1, "contentRights": "permitted", "rightsStatus": "verified", "publicationStatus": "draft",
+    "provenance": { "kind": "aceboard-original", "sourceId": "aceboard-original-content", "createdBy": "fixture-author", "acquisitionMethod": "original-authorship" }
+  },
+  {
+    "id": "fixture-invalid-answer",
+    "exam": "JAMB", "subject": "Physics", "topic": "Fixture electricity", "difficulty": "Medium", "questionType": "mcq",
+    "question": "Which option is the answer?", "options": ["A", "B"], "answer": 7,
+    "explanation": "This synthetic record has an invalid option index.", "revision": 1, "contentRights": "unknown", "rightsStatus": "unknown", "publicationStatus": "draft",
+    "provenance": { "kind": "aceboard-original", "sourceId": "aceboard-original-content", "createdBy": "fixture-author", "acquisitionMethod": "original-authorship" }
+  },
+  {
+    "id": "fixture-malformed-options",
+    "exam": "JAMB", "subject": "Physics", "topic": "Fixture optics", "difficulty": "Medium", "questionType": "mcq",
+    "question": "Which option set is malformed?", "options": "not-an-array", "answer": 0,
+    "explanation": "This synthetic record has malformed options.", "revision": 1, "contentRights": "unknown", "rightsStatus": "unknown", "publicationStatus": "draft",
+    "provenance": { "kind": "aceboard-original", "sourceId": "aceboard-original-content", "createdBy": "fixture-author", "acquisitionMethod": "original-authorship" }
+  },
+  {
+    "id": "fixture-ai-unreviewed",
+    "exam": "JAMB", "subject": "Physics", "topic": "Fixture thermal physics", "difficulty": "Medium", "questionType": "mcq",
+    "question": "Which synthetic record lacks human review?", "options": ["A", "B"], "answer": 0,
+    "explanation": "This synthetic record tests the AI review gate.", "revision": 1, "contentRights": "permitted", "rightsStatus": "verified", "publicationStatus": "approved",
+    "provenance": { "kind": "ai-generated", "sourceId": "fixture-ai-source", "model": "fixture-model", "createdBy": "fixture-run", "acquisitionMethod": "ai-generation" }
+  },
+  {
+    "id": "fixture-ai-assisted-reviewed",
+    "exam": "JAMB", "subject": "Physics", "topic": "Fixture units", "difficulty": "Easy", "questionType": "mcq",
+    "question": "Which is a unit of electric current?", "options": ["Ampere", "Pascal"], "answer": 0,
+    "explanation": "The ampere is the SI unit of electric current.", "revision": 1, "contentRights": "permitted", "rightsStatus": "verified", "publicationStatus": "approved", "humanReviewedAt": "2026-10-07",
+    "provenance": { "kind": "ai-assisted-human-authored", "sourceId": "aceboard-ai-assisted-authoring", "model": "fixture-model", "humanAuthor": "fixture-author", "humanReviewer": "fixture-reviewer", "createdBy": "fixture-author", "acquisitionMethod": "ai-assistance", "attribution": "AceBoard AI-assisted original", "lastReviewedAt": "2026-10-07" }
+  },
+  {
+    "id": "fixture-numeric-grid-in",
+    "exam": "SAT", "subject": "Math", "topic": "Fixture arithmetic", "difficulty": "Easy", "questionType": "gridIn",
+    "question": "What is 6 multiplied by 7?", "answer": 42,
+    "explanation": "Six groups of seven make forty-two.", "revision": 1, "contentRights": "permitted", "rightsStatus": "verified", "publicationStatus": "approved", "humanReviewedAt": "2026-10-07",
+    "provenance": { "kind": "aceboard-original", "sourceId": "aceboard-original-content", "createdBy": "fixture-author", "acquisitionMethod": "original-authorship", "lastReviewedAt": "2026-10-07" }
+  }
+]

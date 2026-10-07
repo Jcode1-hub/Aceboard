@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "validate:questions": "node scripts/validate-questions.js",
-    "test:content-governance": "node scripts/test-content-governance.js"
+    "test:content-governance": "node scripts/test-content-governance.js",
+    "test:content-ingestion": "node scripts/test-content-ingestion.js",
+    "content:import": "node scripts/dry-run-content-import.js"
   },
   "dependencies": {
     "react": "^18.3.1",
