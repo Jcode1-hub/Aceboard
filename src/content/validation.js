@@ -1,10 +1,12 @@
 import {
   CONTENT_RIGHTS_STATES,
+  PROVENANCE_ACQUISITION_METHODS,
   PROVENANCE_KINDS,
   PUBLICATION_STATES,
   QUESTION_TYPES,
   getQuestionType,
 } from "./schema.js";
+import { CONTENT_SOURCES_BY_ID, RIGHTS_STATUSES, canPublishQuestion, validateContentSources } from "./sources.js";
 
 const DIFFICULTIES = new Set(["Easy", "Medium", "Hard"]);
 const TYPES = new Set(QUESTION_TYPES);
@@ -38,13 +40,17 @@ function add(errors, index, id, field, message) {
  * Validate a batch without mutating or repairing it.
  * Returns actionable field-level errors and non-blocking warnings.
  */
-export function validateQuestionRecords(records, { requireTopic = true } = {}) {
+export function validateQuestionRecords(records, {
+  requireTopic = true,
+  sourcesById = CONTENT_SOURCES_BY_ID,
+  includePublicationChecks = true,
+} = {}) {
   const errors = [];
   const warnings = [];
   const seenIds = new Map();
 
   if (!Array.isArray(records)) {
-    return { valid: false, errors: [{ index: null, id: null, field: "questions", message: "Expected an array of question records." }], warnings };
+    return { valid: false, errors: [{ index: null, id: null, field: "questions", message: "Expected an array of question records." }], warnings, publicationChecks: [] };
   }
 
   records.forEach((question, index) => {
@@ -164,6 +170,19 @@ export function validateQuestionRecords(records, { requireTopic = true } = {}) {
       if (provenance.kind === "ai-assisted-human-authored" && !provenance.humanAuthor) {
         add(errors, index, id, "provenance.humanAuthor", "AI-assisted human-authored content requires its human author to be recorded.");
       }
+      if (!isNonEmptyString(provenance.sourceId)) add(errors, index, id, "provenance.sourceId", "A registered source ID is required.");
+      else if (!sourcesById?.has?.(provenance.sourceId)) add(errors, index, id, "provenance.sourceId", `Unknown content source: ${provenance.sourceId}.`);
+      if (!isNonEmptyString(provenance.createdBy)) add(errors, index, id, "provenance.createdBy", "Creator or an explicit unknown/unverified value is required.");
+      if (!PROVENANCE_ACQUISITION_METHODS.includes(provenance.acquisitionMethod)) {
+        add(errors, index, id, "provenance.acquisitionMethod", `Acquisition method must be one of: ${PROVENANCE_ACQUISITION_METHODS.join(", ")}.`);
+      }
+      if (provenance.lastReviewedAt != null && !isValidDate(provenance.lastReviewedAt)) {
+        add(errors, index, id, "provenance.lastReviewedAt", "Last reviewed date must be a valid date string when supplied.");
+      }
+      const source = sourcesById?.get?.(provenance.sourceId);
+      if (source && source.sourceType !== "aceboard-original" && !isNonEmptyString(provenance.attribution)) {
+        add(errors, index, id, "provenance.attribution", "Source attribution is required for non-original content.");
+      }
     }
 
     if (!RIGHTS.has(question.contentRights)) {
@@ -171,6 +190,9 @@ export function validateQuestionRecords(records, { requireTopic = true } = {}) {
     }
     if (!PUBLICATION.has(question.publicationStatus)) {
       add(errors, index, id, "publicationStatus", `Publication status must be one of: ${PUBLICATION_STATES.join(", ")}.`);
+    }
+    if (!RIGHTS_STATUSES.includes(question.rightsStatus)) {
+      add(errors, index, id, "rightsStatus", `Rights status must be one of: ${RIGHTS_STATUSES.join(", ")}.`);
     }
     if (AI_PROVENANCE.has(provenance?.kind) && question.publicationStatus === "published" && !isValidDate(question.humanReviewedAt)) {
       add(errors, index, id, "humanReviewedAt", "AI-created content needs a recorded human review date before publication.");
@@ -186,5 +208,44 @@ export function validateQuestionRecords(records, { requireTopic = true } = {}) {
     }
   });
 
-  return { valid: errors.length === 0, errors, warnings };
+  const sourceValidation = validateContentSources([...new Set(sourcesById?.values?.() ?? [])]);
+  sourceValidation.errors.forEach((error) => {
+    errors.push({ index: null, id: error.sourceId, field: `sourceRegistry.${error.field}`, message: error.message });
+  });
+  sourceValidation.warnings.forEach((warning) => {
+    warnings.push({ index: null, id: warning.sourceId, field: `sourceRegistry.${warning.field}`, message: warning.message });
+  });
+
+  const duplicateIds = new Set();
+  const ids = new Set();
+  records.forEach((question) => {
+    if (question && (typeof question.id === "string" || typeof question.id === "number")) {
+      if (ids.has(question.id)) duplicateIds.add(question.id);
+      ids.add(question.id);
+    }
+  });
+
+  const publicationChecks = includePublicationChecks ? records.map((question, index) => {
+    if (!question || typeof question !== "object" || Array.isArray(question)) {
+      return { index, id: null, allowed: false, reasons: ["Question record is malformed."] };
+    }
+    const schemaErrors = errors
+      .filter((error) => error.index === index || error.index === null)
+      .map((error) => `${error.field}: ${error.message}`);
+    if (duplicateIds.has(question.id)) schemaErrors.push("id: Duplicate question ID in this batch.");
+    const rightsGate = canPublishQuestion(question, sourcesById);
+    const reasons = [...schemaErrors, ...rightsGate.reasons];
+    if (question.publicationStatus !== "approved" && question.publicationStatus !== "published") {
+      reasons.push("Question must be approved before publication.");
+    }
+    return { index, id: question.id ?? null, allowed: reasons.length === 0, reasons };
+  }) : [];
+
+  return { valid: errors.length === 0, errors, warnings, publicationChecks };
+}
+
+/** Explain why a single otherwise-local record is or is not eligible to publish. */
+export function assessQuestionPublication(question, options = {}) {
+  const result = validateQuestionRecords([question], options);
+  return result.publicationChecks[0] ?? { index: 0, id: question?.id ?? null, allowed: false, reasons: ["Question could not be assessed."] };
 }

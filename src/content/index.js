@@ -1,7 +1,10 @@
 import { jambPhysicsQuestions } from "./exams/jamb/physics.js";
 import { getQuestionType } from "./schema.js";
-export { CONTENT_RIGHTS_STATES, PROVENANCE_KINDS, PUBLICATION_STATES, QUESTION_TYPES, getQuestionText, getQuestionType } from "./schema.js";
-export { validateQuestionRecords } from "./validation.js";
+import { CONTENT_SOURCES_BY_ID } from "./sources.js";
+export { CONTENT_RIGHTS_STATES, CONTENT_STATES, CONTENT_STATE_TRANSITIONS, PROVENANCE_ACQUISITION_METHODS, PROVENANCE_KINDS, PUBLICATION_STATES, QUESTION_TYPES, canTransitionContentState, getQuestionText, getQuestionType } from "./schema.js";
+export { ACCESS_TYPES, CONTENT_SOURCES, CONTENT_SOURCES_BY_ID, RIGHTS_STATUSES, SOURCE_TYPES, validateContentSources } from "./sources.js";
+export { assessQuestionPublication, validateQuestionRecords } from "./validation.js";
+export { INGESTION_STAGES, validateAcquisitionRecord } from "./ingestion.js";
 
 // The old JAMB records predate structured provenance and revision metadata.
 // Preserve their source fields and content while explicitly flagging unknown
@@ -13,10 +16,16 @@ export const QUESTIONS = jambPhysicsQuestions.map((question) => ({
   revision: question.revision ?? 1,
   provenance: question.provenance ?? {
     kind: "legacy-unverified",
-    sourceId: question.source,
+    sourceId: "legacy-jamb-physics-2019",
+    sourceItemId: question.source,
     sourceName: "JAMB Physics 2019",
+    createdBy: "unknown/unverified",
+    acquisitionMethod: "legacy-unverified",
+    lastReviewedAt: null,
+    attribution: question.source,
   },
   contentRights: question.contentRights ?? "review-required",
+  rightsStatus: question.rightsStatus ?? "unknown",
   publicationStatus: question.publicationStatus ?? "published",
 }));
 
@@ -47,6 +56,20 @@ export function buildQuestionSearchText(question) {
     ...(Array.isArray(question?.options) ? question.options : []),
     question?.source,
     question?.sourceId,
+    question?.rightsStatus,
+    question?.provenance?.sourceName,
+    question?.provenance?.sourceItemId,
+    question?.provenance?.sourceType,
+    question?.provenance?.attribution,
+    question?.provenance?.createdBy,
+    ...(CONTENT_SOURCES_BY_ID.has(question?.provenance?.sourceId)
+      ? [
+          CONTENT_SOURCES_BY_ID.get(question.provenance.sourceId).organization,
+          CONTENT_SOURCES_BY_ID.get(question.provenance.sourceId).sourceName,
+          CONTENT_SOURCES_BY_ID.get(question.provenance.sourceId).sourceType,
+          CONTENT_SOURCES_BY_ID.get(question.provenance.sourceId).rightsStatus,
+        ]
+      : []),
     ...(Array.isArray(question?.tags) ? question.tags : []),
     question?.learningObjective,
   ].filter(Boolean).join(" "));

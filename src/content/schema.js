@@ -7,7 +7,11 @@
  * @typedef {Object} QuestionProvenance
  * @property {ProvenanceKind} kind
  * @property {string} [sourceId]
+ * @property {string} [sourceItemId]
  * @property {string} [sourceName]
+ * @property {string} createdBy Person or process identifier; use an explicit unknown value when unavailable.
+ * @property {ProvenanceAcquisitionMethod} acquisitionMethod
+ * @property {string|null} lastReviewedAt
  * @property {string} [licenseId]
  * @property {string} [licenseName]
  * @property {string} [permissionReference]
@@ -39,16 +43,18 @@
  * @property {string} [section]
  * @property {string} [source]
  * @property {string|number} [sourceId]
+ * @property {"verified"|"permission-required"|"permission-pending"|"restricted"|"unknown"|"prohibited-for-publication"} rightsStatus
  * @property {string} [image]
  * @property {QuestionProvenance} provenance
  * @property {"permitted"|"licensed"|"public-domain"|"review-required"|"restricted"|"unknown"} contentRights
- * @property {"draft"|"in-review"|"approved"|"published"|"archived"} publicationStatus
+ * @property {"draft"|"validation-failed"|"needs-review"|"approved"|"published"|"archived"} publicationStatus
  * @property {string[]} [tags]
  * @property {string} [learningObjective]
  * @property {string} [createdAt]
  * @property {string} [updatedAt]
  * @property {string} [humanReviewedAt]
  * @property {number} revision
+ * @typedef {"original-authorship"|"licensed-delivery"|"authorized-provider"|"permissioned-import"|"public-reference"|"manual-entry"|"ai-generation"|"ai-assistance"|"legacy-unverified"} ProvenanceAcquisitionMethod
  */
 
 export const QUESTION_TYPES = Object.freeze([
@@ -84,11 +90,39 @@ export const CONTENT_RIGHTS_STATES = Object.freeze([
 
 export const PUBLICATION_STATES = Object.freeze([
   "draft",
-  "in-review",
+  "validation-failed",
+  "needs-review",
   "approved",
   "published",
   "archived",
 ]);
+export const CONTENT_STATES = PUBLICATION_STATES;
+
+export const PROVENANCE_ACQUISITION_METHODS = Object.freeze([
+  "original-authorship",
+  "licensed-delivery",
+  "authorized-provider",
+  "permissioned-import",
+  "public-reference",
+  "manual-entry",
+  "ai-generation",
+  "ai-assistance",
+  "legacy-unverified",
+]);
+
+export const CONTENT_STATE_TRANSITIONS = Object.freeze({
+  draft: ["validation-failed", "needs-review", "archived"],
+  "validation-failed": ["draft", "needs-review", "archived"],
+  "needs-review": ["draft", "approved", "archived"],
+  approved: ["needs-review", "published", "archived"],
+  published: ["archived"],
+  archived: [],
+});
+
+export function canTransitionContentState(from, to, { publicationAllowed = false } = {}) {
+  if (to === "published" && !publicationAllowed) return false;
+  return CONTENT_STATE_TRANSITIONS[from]?.includes(to) ?? false;
+}
 
 /** Resolve canonical records and the legacy `answerType` alias. */
 export function getQuestionType(question) {

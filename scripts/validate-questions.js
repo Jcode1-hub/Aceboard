@@ -1,4 +1,4 @@
-import { QUESTIONS } from "../src/content/index.js";
+import { CONTENT_SOURCES, QUESTIONS } from "../src/content/index.js";
 import { validateQuestionRecords } from "../src/content/validation.js";
 
 const result = validateQuestionRecords(QUESTIONS);
@@ -9,7 +9,20 @@ if (!result.valid) {
   }
   process.exitCode = 1;
 } else {
-  console.log(`Validated ${QUESTIONS.length} question(s); no errors.`);
+  console.log(`Validated ${QUESTIONS.length} question(s) and ${CONTENT_SOURCES.length} registered source(s); no schema or source-registry errors.`);
+}
+
+const publishableCount = result.publicationChecks.filter((check) => check.allowed).length;
+console.log(`Publication eligibility: ${publishableCount}/${result.publicationChecks.length} question(s) currently pass the publication gate.`);
+const blocked = result.publicationChecks.filter((check) => !check.allowed);
+if (blocked.length) {
+  const first = blocked[0];
+  console.warn(`Publication blocked for ${blocked.length} question(s); example ID ${first.id}. Reasons by occurrence:`);
+  const reasonCounts = new Map();
+  for (const check of blocked) {
+    for (const reason of check.reasons) reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
+  }
+  for (const [reason, count] of reasonCounts) console.warn(`- ${count} record(s): ${reason}`);
 }
 
 if (result.warnings.length) {
