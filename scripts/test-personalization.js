@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import { EXAM_LIST } from "../src/exams/registry.js";
+import { LESSONS } from "../src/learning/catalog.js";
+import { accountMenuDestination, canRenderContentReview, collegesForDestinations, filterLessonsForStudent, hasContentAdminClaim, lessonNavigationTarget, PERSONALIZATION_GOALS, SCHOOL_DESTINATIONS, selectedExamIds, shouldDismissAccountMenu } from "../src/platform/personalization.js";
+
+assert.deepEqual(selectedExamIds({ exams: ["JAMB", "WAEC"] }, EXAM_LIST), ["JAMB", "WAEC"]);
+assert.deepEqual(selectedExamIds({ exams: ["SAT", "ACT"] }, EXAM_LIST), ["SAT", "ACT"]);
+assert.deepEqual(selectedExamIds({ exams: [] }, EXAM_LIST), []);
+assert.ok(filterLessonsForStudent(LESSONS, { exams: ["SAT"] }).every((lesson) => lesson.exam === "SAT"));
+assert.equal(filterLessonsForStudent(LESSONS, {}).length, 0);
+assert.deepEqual(lessonNavigationTarget(LESSONS[0]), { area: "learn", examId: LESSONS[0].exam, lessonId: LESSONS[0].id });
+assert.equal(lessonNavigationTarget(null), null);
+assert.equal(hasContentAdminClaim({ admin: true }), true);
+assert.equal(hasContentAdminClaim({ admin: false }), false);
+assert.equal(hasContentAdminClaim({}), false);
+assert.equal(canRenderContentReview(false), false);
+assert.equal(canRenderContentReview(true), true);
+assert.ok(PERSONALIZATION_GOALS.some((goal) => goal.id === "school-discovery"));
+assert.ok(SCHOOL_DESTINATIONS.includes("Nigeria"));
+const schools = [{ country: "Nigeria" }, { country: "USA" }, { country: "UK" }, { country: "Canada" }];
+assert.deepEqual(collegesForDestinations(schools, ["Nigeria"]), [schools[0]]);
+assert.deepEqual(collegesForDestinations(schools, ["United States", "Canada"]), [schools[1], schools[3]]);
+assert.deepEqual(collegesForDestinations(schools, []), []);
+assert.equal(accountMenuDestination("settings"), "profile-settings");
+assert.equal(accountMenuDestination("profile"), "about");
+assert.equal(accountMenuDestination("account"), "about");
+assert.equal(accountMenuDestination("deleteAccount"), "about");
+assert.equal(shouldDismissAccountMenu("escape"), true);
+assert.equal(shouldDismissAccountMenu("pointerdown", false), true);
+assert.equal(shouldDismissAccountMenu("pointerdown", true), false);
+
+console.log("Personalization regression checks passed: selected exams, lesson filtering/navigation, explicit school destinations, account actions, and admin-only review access.");

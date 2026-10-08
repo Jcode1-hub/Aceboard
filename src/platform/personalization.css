@@ -1,0 +1,28 @@
+.ab-account-menu{position:relative}
+.ab-account-menu .ab-avatar{width:36px;height:36px;border:0;border-radius:50%;background:#20365f;color:#fff;font-weight:800;cursor:pointer}
+.ab-account-popover{position:absolute;z-index:120;right:0;top:calc(100% + 9px);width:220px;padding:6px;background:#fff;border:1px solid #e2e7ef;border-radius:12px;box-shadow:0 15px 40px #17244222}
+.ab-account-popover button{display:block;width:100%;padding:10px 11px;text-align:left;border:0;border-radius:7px;background:transparent;color:#273652;font:600 12px 'DM Sans';cursor:pointer}
+.ab-account-popover button:hover,.ab-account-popover button:focus-visible{background:#f2f5fa;outline:none}
+.ab-account-popover button.is-danger{color:#a63d3d}
+.ab-exam-picker-wrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ab-manage-exams{border:0;background:none;color:#3e5fbe;text-decoration:underline;text-underline-offset:3px;font:700 11px 'DM Sans';cursor:pointer}
+.ab-profile-settings-section{margin:20px 0}
+.ab-profile-settings-section h2{font:700 18px Manrope;color:#253654}
+.ab-profile-settings-section>p{color:#737f92;font-size:12px}
+.ab-choice-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.ab-choice-card{display:flex;min-height:86px;flex-direction:column;align-items:flex-start;gap:7px;padding:14px;border:1px solid #e2e7ef;border-radius:11px;background:#fff;text-align:left;color:#293957;cursor:pointer}
+.ab-choice-card.is-selected{border-color:#5574d2;background:#f0f4ff;box-shadow:0 0 0 2px #5574d218}
+.ab-choice-card strong{font:700 12px Manrope}
+.ab-choice-card>span:last-child{font-size:10px;color:#7b8799}
+.ab-choice-icon{color:#4265c7;font-weight:800}
+.ab-profile-actions{display:flex;gap:10px;flex-wrap:wrap;margin:25px 0}
+.ab-practice-mode{width:100%;text-align:left;color:#263550;cursor:pointer}
+.ab-practice-mode:hover,.ab-more-link:hover,.ab-exam-card:hover{border-color:#aab8e1;transform:translateY(-1px)}
+.ab-onboarding-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ab-onboarding-choice{display:flex;min-height:88px;align-items:center;gap:12px;padding:13px;border:1px solid #1e2a4a;border-radius:12px;background:#111827;color:#f0f2ff;text-align:left;cursor:pointer}
+.ab-onboarding-choice>span{width:34px;height:34px;display:grid;place-items:center;flex:0 0 34px;border-radius:10px;background:#1a2744;color:#8fa9ff;font-size:17px}
+.ab-onboarding-choice strong{flex:1;font-size:12px;line-height:1.4}
+.ab-onboarding-choice small{font-size:9px;color:#98a5bd}
+.ab-onboarding-choice.is-selected{border-color:#5a7feb;background:#172746}
+.ab-onboarding-choice.is-selected>span{background:#234579;color:#fff}
+@media(max-width:600px){.ab-choice-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ab-choice-card{min-width:0;padding:11px}.ab-account-popover{position:fixed;top:65px;right:12px}.ab-onboarding-choice-grid{grid-template-columns:1fr}.ab-onboarding-choice{min-height:66px}.ab-profile-actions .ab-button{flex:1}.ab-exam-picker-wrap{width:100%;align-items:flex-start;flex-direction:column}}

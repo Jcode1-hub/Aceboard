@@ -9,6 +9,7 @@ import { QUESTIONS, getQuestionType, getQuestionText, normalizeQuestionSearchTex
 import StudentWorkspace from './platform/StudentWorkspace.jsx';
 import { getPracticeEligibleQuestions } from './platform/workspace.js';
 import { LESSONS } from './learning/catalog.js';
+import { PERSONALIZATION_GOALS, SCHOOL_DESTINATIONS, collegesForDestinations, hasContentAdminClaim } from './platform/personalization.js';
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
@@ -1063,8 +1064,8 @@ function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dai
   }, []);
   const correctQ = stats.correct;
   const pct = totalQ ? Math.round((correctQ / totalQ) * 100) : 0;
-  const myExams = profile?.exams?.length ? profile.exams : EXAMS;
-  const badgeText = profile?.exams?.length ? profile.exams.slice(0, 3).join(" · ") : "WAEC · SAT · IGCSE";
+   const myExams = Array.isArray(profile?.exams) ? profile.exams : [];
+   const badgeText = myExams.length ? myExams.slice(0, 3).join(" · ") : "Choose your exams";
 
   return (
     <div style={S.screen}>
@@ -1313,7 +1314,7 @@ function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dai
 const MOCK_ELIGIBLE = ["WAEC", "JAMB", "NECO"];
 
 function PracticeSetup({ profile, publishedContent, defaultExam, defaultSubject, defaultTopic, onBegin, onBack }) {
-  const myExams = profile?.exams?.length ? profile.exams : EXAMS;
+   const myExams = Array.isArray(profile?.exams) ? profile.exams : [];
   const [exam, setExam] = useState(defaultExam || myExams[0] || "WAEC");
   const [subjects, setSubjects] = useState(defaultSubject ? [defaultSubject] : []);
   const [topic, setTopic] = useState(defaultTopic || "All Topics");
@@ -1545,7 +1546,7 @@ function TimerRing({ timeLeft, totalSeconds, size = 44 }) {
 // ── QUIZ SCREEN ───────────────────────────────────────────────────────────────
 function QuizScreen({ config, publishedContent, bookmarks, onToggleBookmark, onFinish, onBack }) {
   const pool = getPracticeEligibleQuestions(QUESTIONS, publishedContent).filter(q =>
-    q.exam === config.exam &&
+    (Array.isArray(config.questionIds) ? config.questionIds.includes(q.id) : q.exam === config.exam) &&
     (!config.subjects || config.subjects.length === 0 || config.subjects.includes(q.subject)) &&
     (!config.topic || config.topic === "All Topics" || q.topic === config.topic) &&
     (!config.year || config.year === "All Years" || q.year === config.year)
@@ -2655,8 +2656,10 @@ function AnalyticsScreen({ stats, allHistory, profile, dailyActivity, subjectSta
 }
 
 // ── BOOKMARKS SCREEN ──────────────────────────────────────────────────────────
-function BookmarksScreen({ bookmarks, onToggleBookmark, onStartBookmarkQuiz }) {
-  const saved = QUESTIONS.filter(q => bookmarks.includes(q.id));
+function BookmarksScreen({ bookmarks, onToggleBookmark, onStartBookmarkQuiz, profile, practiceEligibleIds = [] }) {
+  const selectedExams = Array.isArray(profile?.exams) ? profile.exams : [];
+  const saved = QUESTIONS.filter(q => bookmarks.includes(q.id) && selectedExams.includes(q.exam));
+  const canPracticeSaved = saved.some((question) => practiceEligibleIds.includes(question.id));
 
   return (
     <div style={S.screen}>
@@ -2673,7 +2676,7 @@ function BookmarksScreen({ bookmarks, onToggleBookmark, onStartBookmarkQuiz }) {
           </div>
         ) : (
           <>
-            {saved.length >= 3 && (
+            {canPracticeSaved && (
               <button style={S.btnPrimary} onClick={onStartBookmarkQuiz}>
                 Practice Bookmarked Questions ({saved.length})
               </button>
@@ -2839,18 +2842,13 @@ function CollegeLogo({ college, size = 56, imgSize = 44 }) {
     </div>
   );
 }
-function CollegesScreen({ profile }) {
+function CollegesScreen({ profile, onManageProfile }) {
   const [region, setRegion] = useState("All");
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
-  const userExams = profile?.exams || [];
-  const wantsNG = userExams.some(e => NG_EXAMS.includes(e));
-  const wantsIntl = userExams.some(e => INTL_EXAMS.includes(e));
-  const showAll = !wantsNG && !wantsIntl;
-  const scopedColleges = COLLEGES.filter(c => {
-    if (showAll) return true;
-    return c.country === "Nigeria" ? wantsNG : wantsIntl;
-  });
+  const destinations = profile?.destinations || [];
+  const wantsNG = destinations.includes("Nigeria");
+  const scopedColleges = collegesForDestinations(COLLEGES, destinations);
   const scopedRegions = ["All", ...new Set(scopedColleges.map(c => c.region))];
   const filtered = scopedColleges.filter(c =>
     (region === "All" || c.region === region) &&
@@ -2864,13 +2862,13 @@ function CollegesScreen({ profile }) {
         <h1 style={{ ...S.h1, marginTop: 6, fontSize: 24 }}>Colleges</h1>
       </div>
       <div style={{ ...S.px, ...S.gap(14) }}>
-        <CollegeSlideshow colleges={scopedColleges.slice(0, 5)} onSelect={setSelected} />
+        {scopedColleges.length > 0 && <CollegeSlideshow colleges={scopedColleges.slice(0, 5)} onSelect={setSelected} />}
         <div style={{ position: "relative" }}>
           <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}><Icon name="search" size={16} color="#64748B" /></div>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search for a school..."
             style={{ width: "100%", padding: "12px 14px 12px 40px", backgroundColor: "#111827", border: "1px solid #1E2A4A", borderRadius: 12, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
         </div>
-        {(wantsNG || showAll) && (
+        {wantsNG && (
           <div style={S.card}>
             <p style={{ ...S.label, marginBottom: 12 }}>🇳🇬 Nigerian Admissions Portals</p>
             <div style={S.gap(8)}>
@@ -2908,7 +2906,7 @@ function CollegesScreen({ profile }) {
               </button>
             );
           })}
-          {filtered.length === 0 && <div style={{ textAlign: "center", padding: "40px 20px" }}><p style={S.body}>No schools match your search.</p></div>}
+          {filtered.length === 0 && <div style={{ textAlign: "center", padding: "40px 20px" }}><p style={S.body}>{destinations.length ? "No schools match your search in the destinations you selected." : "Choose study destinations in your profile to personalize school discovery."}</p>{!destinations.length && <button style={S.btnPrimary} onClick={onManageProfile}>Choose destinations</button>}</div>}
         </div>
       </div>
     </div>
@@ -2923,7 +2921,7 @@ function QuestionSearchScreen({ onBack, profile, publishedContent }) {
   const [selected, setSelected] = useState(null);
   const userExams = profile?.exams || [];
   const eligibleQuestions = getPracticeEligibleQuestions(QUESTIONS, publishedContent);
-  const scopedQs = userExams.length > 0 ? eligibleQuestions.filter(q => userExams.includes(q.exam)) : eligibleQuestions;
+  const scopedQs = eligibleQuestions.filter(q => userExams.includes(q.exam));
   const normalizedKeyword = normalizeQuestionSearchText(keyword);
   const examOptions = ["All", ...new Set(scopedQs.map(q => q.exam))];
   const subjectOptions = ["All Subjects", ...new Set(scopedQs.filter(q => examFilter === "All" || q.exam === examFilter).map(q => q.subject))];
@@ -3003,8 +3001,8 @@ function NotesScreen({ onBack, onTestTopic, profile }) {
   const [topicNote, setTopicNote] = useState(null);
   const [showFlashcards, setShowFlashcards] = useState(false);
   const userExams = profile?.exams || [];
-  const scopedNotes = userExams.length > 0 ? NOTES.filter(n => userExams.includes(n.exam)) : NOTES;
-  const scopedBooks = userExams.length > 0 ? BOOKS.filter(b => userExams.includes(b.exam)) : BOOKS;
+  const scopedNotes = NOTES.filter(n => userExams.includes(n.exam));
+  const scopedBooks = BOOKS.filter(b => userExams.includes(b.exam));
   const examOptions = [...new Set(scopedNotes.map(n => n.exam))];
   const subjectOptions = exam ? [...new Set(scopedNotes.filter(n => n.exam === exam).map(n => n.subject))] : [];
   const topicOptions = exam && subject ? scopedNotes.filter(n => n.exam === exam && n.subject === subject) : [];
@@ -3619,8 +3617,8 @@ function AIStudyCoach({ onBack }) {
   );
 }
 // ── ABOUT SCREEN ──────────────────────────────────────────────────────────────
-function AboutScreen({ user, onSignOut, profile, missedQuestions }) {
-  const [screen, setScreen] = useState("main"); // main | review | deleteConfirm
+function AboutScreen({ user, onSignOut, profile, missedQuestions, initialScreen = "main" }) {
+  const [screen, setScreen] = useState(initialScreen); // main | review | deleteConfirm
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
@@ -4182,6 +4180,8 @@ function OnboardingScreen({ onComplete, publishedContent = [] }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [selectedExams, setSelectedExams] = useState([]);
+  const [selectedGoals, setSelectedGoals] = useState(["exam-prep"]);
+  const [selectedDestinations, setSelectedDestinations] = useState([]);
   const [examTargets, setExamTargets] = useState({});
   const [feedback, setFeedback] = useState(null);
 
@@ -4190,8 +4190,9 @@ function OnboardingScreen({ onComplete, publishedContent = [] }) {
   };
 
   const examSteps = selectedExams;
-  const totalSteps = 2 + examSteps.length + 1;
-  const currentExam = step >= 2 && step < 2 + examSteps.length ? examSteps[step - 2] : null;
+  const totalSteps = 4 + examSteps.length + 1;
+  const currentExam = step >= 4 && step < 4 + examSteps.length ? examSteps[step - 4] : null;
+  const toggleSelection = (value, setValues) => setValues((previous) => previous.includes(value) ? previous.filter((item) => item !== value) : [...previous, value]);
 
   const getTarget = (exam) => examTargets[exam] || {};
   const setTarget = (exam, patch) => {
@@ -4234,6 +4235,8 @@ function OnboardingScreen({ onComplete, publishedContent = [] }) {
   const canContinue = () => {
     if (step === 0) return true;
     if (step === 1) return selectedExams.length > 0;
+    if (step === 2) return selectedGoals.length > 0;
+    if (step === 3) return !selectedGoals.some((goal) => ["school-discovery", "applications", "opportunities"].includes(goal)) || selectedDestinations.length > 0;
     if (currentExam) {
       const t = getTarget(currentExam);
       if (WAEC_STYLE_EXAMS.includes(currentExam)) {
@@ -4261,7 +4264,7 @@ function OnboardingScreen({ onComplete, publishedContent = [] }) {
 
   const next = () => {
     if (step < totalSteps - 1) setStep(step + 1);
-    else onComplete({ name: name.trim() || "Student", exams: selectedExams, targets: examTargets });
+    else onComplete({ name: name.trim() || "Student", exams: selectedExams, targets: examTargets, goals: selectedGoals, destinations: selectedDestinations });
   };
 
   return (
@@ -4331,6 +4334,16 @@ function OnboardingScreen({ onComplete, publishedContent = [] }) {
             </div>
           </>
         )}
+
+        {step === 2 && <>
+          <div><p style={S.label}>Step 3 of {totalSteps}</p><h1 style={{ ...S.h1, marginTop: 8 }}>What are you using AceBoard for?</h1><p style={{ ...S.body, marginTop: 6 }}>Choose all that apply. We use these choices to shape your study plan.</p></div>
+          <div className="ab-onboarding-choice-grid">{PERSONALIZATION_GOALS.map((goal) => <button type="button" key={goal.id} aria-pressed={selectedGoals.includes(goal.id)} onClick={() => toggleSelection(goal.id, setSelectedGoals)} className={`ab-onboarding-choice ${selectedGoals.includes(goal.id) ? "is-selected" : ""}`}><span>{goal.icon}</span><strong>{goal.label}</strong><small>{selectedGoals.includes(goal.id) ? "Selected" : "Select"}</small></button>)}</div>
+        </>}
+
+        {step === 3 && <>
+          <div><p style={S.label}>Step 4 of {totalSteps}</p><h1 style={{ ...S.h1, marginTop: 8 }}>Where might you study next?</h1><p style={{ ...S.body, marginTop: 6 }}>This preference filters school and opportunity discovery. It is not guessed from your exams.</p></div>
+          <div className="ab-onboarding-choice-grid">{SCHOOL_DESTINATIONS.map((destination) => <button type="button" key={destination} aria-pressed={selectedDestinations.includes(destination)} onClick={() => toggleSelection(destination, setSelectedDestinations)} className={`ab-onboarding-choice ${selectedDestinations.includes(destination) ? "is-selected" : ""}`}><span>⌖</span><strong>{destination}</strong><small>{selectedDestinations.includes(destination) ? "Selected" : "Select"}</small></button>)}</div>
+        </>}
 
         {WAEC_STYLE_EXAMS.includes(currentExam) && (() => {
           const t = getTarget(currentExam);
@@ -4686,6 +4699,7 @@ function OnboardingScreen({ onComplete, publishedContent = [] }) {
               <p style={{ ...S.body, marginTop: 6 }}>Here's what we've got:</p>
             </div>
             <div style={S.gap(10)}>
+              <div style={{ ...S.cardAlt, padding: 14 }}><strong style={{ color: "#F0F2FF" }}>Your goals</strong><p style={{ ...S.small, marginTop: 6 }}>{PERSONALIZATION_GOALS.filter((goal) => selectedGoals.includes(goal.id)).map((goal) => goal.label).join(" · ")}</p><strong style={{ color: "#F0F2FF" }}>Study destinations</strong><p style={{ ...S.small, marginTop: 6 }}>{selectedDestinations.length ? selectedDestinations.join(" · ") : "Not selected"}</p></div>
               {selectedExams.map(exam => (
                 <div key={exam} style={{ ...S.cardAlt, padding: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -4725,8 +4739,10 @@ useEffect(() => {
   const t = setTimeout(() => setMinSplashDone(true), 1200);
   return () => clearTimeout(t);
 }, []);
-const [onboarded, setOnboarded] = useState(false);
+  const [onboarded, setOnboarded] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [isContentAdmin, setIsContentAdmin] = useState(false);
+  const [accountInitialScreen, setAccountInitialScreen] = useState("main");
   const [tab, setTab] = useState("home");
   const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [screen, setScreen] = useState("home"); useEffect(() => {
@@ -4762,6 +4778,17 @@ const [onboarded, setOnboarded] = useState(false);
 
   const shellMaxWidth = viewportWidth; // full edge-to-edge, no cap
   const shellStyle = { ...S.app, maxWidth: shellMaxWidth };
+
+  useEffect(() => {
+    let active = true;
+    if (!user) { setIsContentAdmin(false); return undefined; }
+    user.getIdTokenResult().then((token) => { if (active) setIsContentAdmin(hasContentAdminClaim(token.claims)); }).catch(() => { if (active) setIsContentAdmin(false); });
+    return () => { active = false; };
+  }, [user]);
+
+  useEffect(() => {
+    if (tab === "content-review" && !isContentAdmin) setTab("home");
+  }, [tab, isContentAdmin]);
 
   // Splash timer
   useEffect(() => {
@@ -4823,12 +4850,15 @@ const [onboarded, setOnboarded] = useState(false);
     setOnboarded(true);
   };
 
+  const handleSaveProfile = (nextProfile) => setProfile(nextProfile);
+
   const handleSignOut = async () => {
     await signOut(auth);
   };
 
   const handleStart = (exam = null, subject = null, topic = null) => {
   const chosenExam = exam || profile?.exams?.find(e => e !== "SAT") || profile?.exams?.[0] || null;
+  if (!chosenExam || !profile?.exams?.includes(chosenExam)) { setTab("profile-settings"); setScreen("home"); return; }
     const availableForSelection = getPracticeEligibleQuestions(QUESTIONS, publishedContent).some((question) => question.exam === chosenExam && (!subject || question.subject === subject) && (!topic || question.topic === topic));
     if (!availableForSelection) {
       const lesson = LESSONS.find((item) => item.exam === chosenExam && (!subject || item.subject === subject) && (!topic || item.topic === topic)) || LESSONS.find((item) => item.exam === chosenExam && (!subject || item.subject === subject));
@@ -4842,6 +4872,13 @@ const [onboarded, setOnboarded] = useState(false);
     setDefaultTopic(topic);
     setScreen("config");
   }
+  const handleStartBookmarked = () => {
+    const eligibleIds = new Set(getPracticeEligibleQuestions(QUESTIONS, publishedContent).filter((question) => profile?.exams?.includes(question.exam) && bookmarks.includes(question.id)).map((question) => question.id));
+    if (!eligibleIds.size) return;
+    const first = QUESTIONS.find((question) => eligibleIds.has(question.id));
+    setQuizConfig({ exam: first.exam, mode: "practice", questionIds: [...eligibleIds], count: eligibleIds.size });
+    setScreen("quiz");
+  };
   const handleTestTopic = (exam, subject, topic) => {
     setDefaultExam(exam);
     setDefaultSubject(subject);
@@ -5081,7 +5118,7 @@ const [onboarded, setOnboarded] = useState(false);
     </div>
   );
 
-  const primaryAreas = ["home", "practice", "learn", "challenges", "analytics", "more", "leaderboard", "content-review", "sat-resources", "resources", "search"];
+  const primaryAreas = ["home", "practice", "learn", "challenges", "analytics", "more", "leaderboard", "sat-resources", "resources", "search", "profile-settings", ...(isContentAdmin ? ["content-review"] : [])];
   const isPrimaryArea = primaryAreas.includes(tab);
   const navItems = [
     { id: "home", label: "Home", icon: "home" },
@@ -5099,12 +5136,14 @@ const [onboarded, setOnboarded] = useState(false);
         area={tab}
         profile={profile}
         stats={stats}
+        subjectStats={subjectStats}
         bookmarks={bookmarks}
         questions={QUESTIONS}
         publishedContent={publishedContent}
         learningProgress={learningProgress}
         officialSatResults={satOfficialResults}
         onSaveOfficialSatResult={handleSaveOfficialSatResult}
+        onSaveProfile={handleSaveProfile}
         getActiveChallenges={() => callChallengeFunction("getActiveChallenges", {})}
         startChallenge={(challengeId) => callChallengeFunction("startChallenge", { challengeId })}
         submitChallenge={(challengeId, responses) => callChallengeFunction("submitChallengeAttempt", { challengeId, responses })}
@@ -5113,10 +5152,14 @@ const [onboarded, setOnboarded] = useState(false);
         recordReview={(data) => callChallengeFunction("recordQuestionReview", data)}
         createDailyChallenge={(data) => callChallengeFunction("createDailyChallenge", data)}
         onRefreshPublishedContent={refreshPublishedContent}
+        isContentAdmin={isContentAdmin}
         onStartPractice={(exam, subject, topic) => handleStart(exam, subject, topic)}
         onStartSatFullTest={() => setScreen("selectSatTest")}
         onOpenLegacy={(destination) => {
-          const destinations = { saved: "bookmarks", progress: "analytics" };
+          if (destination === "missed") { setAccountInitialScreen("review"); setTab("about"); return; }
+          if (destination === "delete-account") { setAccountInitialScreen("deleteConfirm"); setTab("about"); return; }
+          const destinations = { saved: "bookmarks", progress: "analytics", account: "about", profile: "about" };
+          setAccountInitialScreen("main");
           setTab(destinations[destination] || destination);
         }}
         selectedLessonId={selectedLessonId}
@@ -5127,9 +5170,9 @@ const [onboarded, setOnboarded] = useState(false);
       />}
       {tab === "analytics" && <AnalyticsScreen stats={stats} profile={profile} dailyActivity={dailyActivity} subjectStats={subjectStats} />}
       {tab === "coach" && <AIHub onBack={() => setTab("home")} />}
-      {tab === "colleges" && <CollegesScreen profile={profile} />}
-      {tab === "bookmarks" && <BookmarksScreen bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onStartBookmarkQuiz={() => handleStart("practice")} />}
-      {tab === "about" && <AboutScreen user={user} onSignOut={handleSignOut} profile={profile} missedQuestions={missedQuestions} />}
+      {tab === "colleges" && <CollegesScreen profile={profile} onManageProfile={() => setTab("profile-settings")} />}
+      {tab === "bookmarks" && <BookmarksScreen bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onStartBookmarkQuiz={handleStartBookmarked} profile={profile} practiceEligibleIds={getPracticeEligibleQuestions(QUESTIONS, publishedContent).map((question) => question.id)} />}
+      {tab === "about" && <AboutScreen key={accountInitialScreen} initialScreen={accountInitialScreen} user={user} onSignOut={handleSignOut} profile={profile} missedQuestions={missedQuestions} />}
 
       <nav className="ab-bottom-nav" style={{ maxWidth: Math.min(shellMaxWidth, 780) }}>
         {navItems.map(({ id, label, icon }) => (
