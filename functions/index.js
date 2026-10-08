@@ -208,47 +208,6 @@ exports.recordQuestionReview = onCall(async (request) => {
   });
 });
 
-exports.sendAceBoardNotification = onCall(async (request) => {
-  requireContentAdmin(request);
-
-  const targetUid = String(request.data?.targetUid || "").trim();
-  const title = String(request.data?.title || "").trim();
-  const body = String(request.data?.body || "").trim();
-  const url = String(request.data?.url || "/").trim();
-  const data = request.data?.data && typeof request.data.data === "object"
-    ? request.data.data
-    : {};
-
-  if (!targetUid) {
-    throw new HttpsError("invalid-argument", "A target user is required.");
-  }
-
-  if (!title || title.length > 120) {
-    throw new HttpsError("invalid-argument", "Notification title must be 1–120 characters.");
-  }
-
-  if (!body || body.length > 500) {
-    throw new HttpsError("invalid-argument", "Notification body must be 1–500 characters.");
-  }
-
-  if (!url.startsWith("/")) {
-    throw new HttpsError("invalid-argument", "Notification URL must be an internal AceBoard path.");
-  }
-
-  const { sendUserNotification } = require("./notificationService");
-
-  const result = await sendUserNotification(targetUid, {
-    title,
-    body,
-    url,
-    data,
-  });
-
-  return {
-    targetUid,
-    ...result,
-  };
-});
 exports.createDailyChallenge = onCall(async (request) => {
   const uid = requireContentAdmin(request);
   const questionIds = request.data?.questionIds;
