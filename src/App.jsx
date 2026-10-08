@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, deleteDoc } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import * as pdfjsLib from "pdfjs-dist/build/pdf";
 import { SatTestRunner, PracticeTestSelect } from './BluebookQuizScreen';
 import { QUESTIONS, getQuestionType, getQuestionText, normalizeQuestionSearchText, buildQuestionSearchText, QUESTION_SEARCH_TEXT_BY_ID } from './content';
+import StudentWorkspace from './platform/StudentWorkspace.jsx';
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
@@ -21,7 +23,9 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+const functionsClient = getFunctions(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
+const callChallengeFunction = async (name, data) => (await httpsCallable(functionsClient, name)(data)).data;
 
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
@@ -1912,13 +1916,11 @@ function SatResultsScreen({ answers, questions, timeInfo, userName, onHome, onRe
   const mathScore = pctToScaledScore(mathPct);
   const totalScore = rwScore + mathScore;
 
-  const totalPercentile = lookupPercentile(totalScore, SAT_TOTAL_PERCENTILES);
-  const rwPercentile = lookupPercentile(rwScore, SAT_SECTION_PERCENTILES.RW);
-  const mathPercentile = lookupPercentile(mathScore, SAT_SECTION_PERCENTILES.Math);
-
   const totalCorrect = rwCorrect + mathCorrect;
   const totalQuestions = rwTotal + mathTotal;
-  const totalIncorrect = totalQuestions - totalCorrect;
+  const isAnswered = (answer) => answer.selected !== undefined && answer.selected !== null && answer.selected !== "";
+  const totalUnanswered = answers.filter((answer) => !isAnswered(answer)).length;
+  const totalIncorrect = answers.filter((answer) => isAnswered(answer) && !answer.correct).length;
 
   // Domain breakdown
   const rwDomains = {};
@@ -1956,12 +1958,10 @@ function SatResultsScreen({ answers, questions, timeInfo, userName, onHome, onRe
     <div style={S.screen}>
       <div style={{ ...S.header, textAlign: "center", paddingBottom: 24 }}>
         <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 4 }}>{userName}</div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#94A3B8", letterSpacing: 1 }}>TOTAL SCORE</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#AFC2F3", letterSpacing: 1 }}>ACEBOARD SIMULATED PRACTICE ESTIMATE · NOT AN OFFICIAL SAT SCORE</div>
         <div style={{ fontSize: 56, fontWeight: 900, color: "#3B82F6", letterSpacing: "-0.04em" }}>{totalScore}</div>
         <div style={{ fontSize: 13, color: "#94A3B8" }}>Score Range: 400–1600</div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#3B82F6", marginTop: 6 }}>
-          {totalPercentile}th percentile (User Group)
-        </div>
+        <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 6 }}>Estimated with AceBoard's practice curve; College Board scoring is not reproduced.</div>
       </div>
 
       <div style={{ ...S.px, ...S.gap(14) }}>
@@ -1973,13 +1973,11 @@ function SatResultsScreen({ answers, questions, timeInfo, userName, onHome, onRe
               <div style={{ fontSize: 12, color: "#94A3B8" }}>Reading and Writing</div>
               <div style={{ fontSize: 36, fontWeight: 900, color: "#3B82F6" }}>{rwScore}</div>
               <div style={{ fontSize: 11, color: "#94A3B8" }}>200–800</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6" }}>{rwPercentile}th percentile</div>
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 12, color: "#94A3B8" }}>Math</div>
               <div style={{ fontSize: 36, fontWeight: 900, color: "#3B82F6" }}>{mathScore}</div>
               <div style={{ fontSize: 11, color: "#94A3B8" }}>200–800</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6" }}>{mathPercentile}th percentile</div>
             </div>
           </div>
         </div>
@@ -1995,6 +1993,10 @@ function SatResultsScreen({ answers, questions, timeInfo, userName, onHome, onRe
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 28, fontWeight: 900 }}>{totalIncorrect}</div>
               <div style={{ fontSize: 11, color: "#94A3B8" }}>Incorrect</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 28, fontWeight: 900 }}>{totalUnanswered}</div>
+              <div style={{ fontSize: 11, color: "#94A3B8" }}>Unanswered</div>
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 28, fontWeight: 900 }}>{totalQuestions}</div>
@@ -4043,7 +4045,7 @@ function SignInScreen({ onSignedIn }) {
 // — SPLASH SCREEN —
 function SplashScreen({ onDone }) {
   useEffect(() => {
-    const t = setTimeout(() => onDone && onDone(), 2600);
+    const t = setTimeout(() => onDone && onDone(), 1400);
     return () => clearTimeout(t);
   }, []);
 
@@ -4082,25 +4084,26 @@ function SplashScreen({ onDone }) {
   .as-logo-wrap {
     position: relative; width: 96px; height: 96px; border-radius: 22px; overflow: hidden;
     animation: logoIn 700ms cubic-bezier(0.22, 1, 0.36, 1) 0ms forwards,
-               glowPulse 1600ms ease-in-out 650ms 1;
+               glowPulse 900ms ease-in-out 450ms 1;
     opacity: 0;
   }
   .as-logo-img { width: 100%; height: 100%; display: block; object-fit: contain; }
   .as-shine {
     position: absolute; top: 0; left: 0; width: 40%; height: 100%;
     background: linear-gradient(75deg, transparent, rgba(255,255,255,0.55), transparent);
-    animation: shineSweep 800ms ease-in-out 500ms 1;
+    animation: shineSweep 650ms ease-in-out 300ms 1;
     pointer-events: none;
   }
   .as-word {
     margin-top: 20px; font-size: 30px; font-weight: 800; letter-spacing: -0.02em;
     color: #F0F4FF; opacity: 0;
-    animation: wordUp 500ms ease-out 1100ms forwards;
+    animation: wordUp 450ms ease-out 550ms forwards;
   }
   .as-tag {
     margin-top: 6px; font-size: 13px; color: #7C8AA5; opacity: 0;
-    animation: tagUp 500ms ease-out 1400ms forwards;
+    animation: tagUp 450ms ease-out 800ms forwards;
   }
+  @media (prefers-reduced-motion: reduce) { .as-logo-wrap,.as-shine,.as-word,.as-tag { animation-duration: 0.01ms !important; animation-delay: 0ms !important; } }
 `}</style>
 
       <div className="as-logo-wrap">
@@ -4109,7 +4112,7 @@ function SplashScreen({ onDone }) {
       </div>
 
       <div className="as-word">Ace<span style={{ color: "#3B82F6" }}>Board</span></div>
-      <div className="as-tag">Built for students, everywhere.</div>
+      <div className="as-tag">Learn. Practice. Advance.</div>
     </div>
   );
 }
@@ -4708,12 +4711,13 @@ export default function AceBoard() {
   const [authChecked, setAuthChecked] = useState(false);
 const [minSplashDone, setMinSplashDone] = useState(false);
 useEffect(() => {
-  const t = setTimeout(() => setMinSplashDone(true), 2600);
+  const t = setTimeout(() => setMinSplashDone(true), 1200);
   return () => clearTimeout(t);
 }, []);
 const [onboarded, setOnboarded] = useState(false);
   const [profile, setProfile] = useState(null);
   const [tab, setTab] = useState("home");
+  const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [screen, setScreen] = useState("home"); useEffect(() => {
   }, [screen]);
   // home | config | quiz | results
@@ -4730,6 +4734,9 @@ const [onboarded, setOnboarded] = useState(false);
   const [dailyActivity, setDailyActivity] = useState({}); // { "YYYY-MM-DD": { total, correct } }
   const [subjectStats, setSubjectStats] = useState({});
   const [missedQuestions, setMissedQuestions] = useState({});
+  const [learningProgress, setLearningProgress] = useState({});
+  const [satOfficialResults, setSatOfficialResults] = useState([]);
+  const handleSatSessionChange = useCallback((snapshot) => setSatActiveTest(snapshot), []);
     const [satActiveTest, setSatActiveTest] = useState(null);
       const [satCompletedTests, setSatCompletedTests] = useState([]);
   const [viewportWidth, setViewportWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 430);
@@ -4746,7 +4753,7 @@ const [onboarded, setOnboarded] = useState(false);
 
   // Splash timer
   useEffect(() => {
-    const t = setTimeout(() => setBooting(false), 1400);
+    const t = setTimeout(() => setBooting(false), 1250);
     return () => clearTimeout(t);
   }, []);
 
@@ -4768,6 +4775,8 @@ const [onboarded, setOnboarded] = useState(false);
             setDailyActivity(data.dailyActivity || {});
             setSubjectStats(data.subjectStats || {});
             setMissedQuestions(data.missedQuestions || {});
+            setLearningProgress(data.learningProgress || {});
+            setSatOfficialResults(data.satOfficialResults || []);
                         setSatActiveTest(data.satActiveTest || null);
             setOnboarded(!!data.profile);
           } else {
@@ -4790,8 +4799,8 @@ const [onboarded, setOnboarded] = useState(false);
     useEffect(() => {
     if (!user || !profile) return;
     const ref = doc(db, "users", user.uid);
-        setDoc(ref, { profile, bookmarks, stats, dailyActivity, subjectStats, missedQuestions, satActiveTest, satCompletedTests, email: user.email, name: user.displayName }, { merge: true }).catch(err => console.error("Save failed:", err));
-  }, [user, profile, bookmarks, stats, dailyActivity, subjectStats, missedQuestions, satActiveTest, satCompletedTests]);
+        setDoc(ref, { profile, bookmarks, stats, dailyActivity, subjectStats, missedQuestions, satActiveTest, satCompletedTests, learningProgress, satOfficialResults, email: user.email, name: user.displayName }, { merge: true }).catch(err => console.error("Save failed:", err));
+  }, [user, profile, bookmarks, stats, dailyActivity, subjectStats, missedQuestions, satActiveTest, satCompletedTests, learningProgress, satOfficialResults]);
 
     const handleSignedIn = (firebaseUser) => {
     setUser(firebaseUser);
@@ -4806,11 +4815,11 @@ const [onboarded, setOnboarded] = useState(false);
     await signOut(auth);
   };
 
-  const handleStart = (exam = null) => {
+  const handleStart = (exam = null, subject = null, topic = null) => {
   const chosenExam = exam || profile?.exams?.find(e => e !== "SAT") || profile?.exams?.[0] || null;
     setDefaultExam(chosenExam);
-    setDefaultSubject(null);
-    setDefaultTopic(null);
+    setDefaultSubject(subject);
+    setDefaultTopic(topic);
     if (chosenExam === "SAT") {
       setScreen("selectSatTest");
     } else {
@@ -4872,6 +4881,14 @@ const [onboarded, setOnboarded] = useState(false);
     setBookmarks(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]);
   };
 
+  const handleSaveLearningProgress = (lessonId, record) => {
+    setLearningProgress(prev => ({ ...prev, [lessonId]: record }));
+  };
+
+  const handleSaveOfficialSatResult = (record) => {
+    setSatOfficialResults(prev => [record, ...prev]);
+  };
+
   const handleRetry = () => {
     setQuizAnswers(null);
     setScreen("quiz");
@@ -4914,6 +4931,7 @@ const [onboarded, setOnboarded] = useState(false);
       {quizConfig.exam === "SAT" ? (
         <SatTestRunner
                   onSaveExit={(snapshot) => setSatActiveTest(snapshot)}
+          onSessionChange={handleSatSessionChange}
                   userName={user?.displayName || "Student"}
           allQuestions={QUESTIONS}
           practiceTest={quizConfig.practiceTest}
@@ -5032,29 +5050,54 @@ const [onboarded, setOnboarded] = useState(false);
     </div>
   );
 
+  const primaryAreas = ["home", "practice", "learn", "challenges", "analytics", "more", "sat-resources", "leaderboard", "resources", "search"];
+  const isPrimaryArea = primaryAreas.includes(tab);
   const navItems = [
     { id: "home", label: "Home", icon: "home" },
+    { id: "practice", label: "Practice", icon: "book" },
+    { id: "learn", label: "Learn", icon: "school" },
+    { id: "challenges", label: "Challenges", icon: "sparkles" },
     { id: "analytics", label: "Progress", icon: "chart" },
-    { id: "coach", label: "AI Coach", icon: "sparkles" },
-    { id: "colleges", label: "Colleges", icon: "school" },
-    { id: "bookmarks", label: "Saved", icon: "bookmark" },
-    { id: "about", label: "About", icon: "user" },
+    { id: "more", label: "More", icon: "menu" },
   ];
 
   return (
     <div style={shellStyle}>
-      {tab === "home" && <HomeScreen onStart={handleStart} onSearch={() => setScreen("search")} onNotes={() => setScreen("notes")} bookmarks={bookmarks} stats={stats} profile={profile} dailyActivity={dailyActivity} subjectStats={subjectStats} />}
+      {isPrimaryArea && tab !== "analytics" && <StudentWorkspace
+        area={tab}
+        profile={profile}
+        stats={stats}
+        bookmarks={bookmarks}
+        questions={QUESTIONS}
+        learningProgress={learningProgress}
+        officialSatResults={satOfficialResults}
+        onSaveOfficialSatResult={handleSaveOfficialSatResult}
+        getActiveChallenges={() => callChallengeFunction("getActiveChallenges", {})}
+        startChallenge={(challengeId) => callChallengeFunction("startChallenge", { challengeId })}
+        submitChallenge={(challengeId, responses) => callChallengeFunction("submitChallengeAttempt", { challengeId, responses })}
+        getLeaderboard={(scope) => callChallengeFunction("getChallengeLeaderboard", { scope })}
+        onStartPractice={(exam, subject, topic) => handleStart(exam, subject, topic)}
+        onOpenLegacy={(destination) => {
+          const destinations = { saved: "bookmarks", progress: "analytics" };
+          setTab(destinations[destination] || destination);
+        }}
+        selectedLessonId={selectedLessonId}
+        onSelectLesson={setSelectedLessonId}
+        onSaveLearningProgress={handleSaveLearningProgress}
+        onSignOut={handleSignOut}
+        user={user}
+      />}
       {tab === "analytics" && <AnalyticsScreen stats={stats} profile={profile} dailyActivity={dailyActivity} subjectStats={subjectStats} />}
       {tab === "coach" && <AIHub onBack={() => setTab("home")} />}
       {tab === "colleges" && <CollegesScreen profile={profile} />}
       {tab === "bookmarks" && <BookmarksScreen bookmarks={bookmarks} onToggleBookmark={handleToggleBookmark} onStartBookmarkQuiz={() => handleStart("practice")} />}
       {tab === "about" && <AboutScreen user={user} onSignOut={handleSignOut} profile={profile} missedQuestions={missedQuestions} />}
 
-      <nav style={{ ...S.nav, maxWidth: Math.min(shellMaxWidth, 600) }}>
+      <nav className="ab-bottom-nav" style={{ maxWidth: Math.min(shellMaxWidth, 780) }}>
         {navItems.map(({ id, label, icon }) => (
-          <button key={id} style={S.navBtn(tab === id)} onClick={() => setTab(id)}>
-            <Icon name={icon} size={20} color={tab === id ? "#3B82F6" : "#4A5568"} />
-            <span style={S.navLabel}>{label}</span>
+          <button key={id} className={tab === id ? "is-active" : ""} onClick={() => { setScreen("home"); setTab(id); }}>
+            <Icon name={icon} size={19} color={tab === id ? "#3459d4" : "#788398"} />
+            <span>{label}</span>
           </button>
         ))}
       </nav>
@@ -5081,26 +5124,6 @@ function pctToScaledScore(pct) {
     }
   }
   return pct <= 0 ? 200 : 800;
-}
-
-// Official College Board percentile tables (User Group), 10-point increments
-const SAT_TOTAL_PERCENTILES = {
-  1600: 99, 1550: 99, 1500: 98, 1450: 96, 1400: 93, 1350: 90, 1300: 86,
-  1250: 82, 1200: 76, 1150: 70, 1100: 63, 1050: 56, 1000: 48, 950: 41,
-  900: 33, 850: 25, 800: 18, 750: 11, 700: 5, 650: 3, 600: 1, 550: 1,
-  500: 1, 450: 1, 400: 1,
-};
-const SAT_SECTION_PERCENTILES = {
-  RW: { 800: 99, 750: 98, 700: 93, 650: 85, 600: 74, 550: 61, 500: 45, 450: 30, 400: 16, 350: 5, 300: 2, 200: 1 },
-  Math: { 800: 99, 750: 96, 700: 92, 650: 87, 600: 77, 550: 66, 500: 51, 450: 37, 400: 22, 350: 8, 300: 2, 200: 1 },
-};
-
-function lookupPercentile(score, table) {
-  const keys = Object.keys(table).map(Number).sort((a, b) => b - a);
-  for (const k of keys) {
-    if (score >= k) return table[k];
-  }
-  return 1;
 }
 
 // Map granular topics to official SAT domains
@@ -5135,17 +5158,20 @@ function getMathDomain(topic) {
   return "Algebra";
 }
 function bridgeSatFinish({ results, answers }, satPool) {
-  const ans = [];
+  const selectedById = {};
   Object.values(answers).forEach(moduleAnswers => {
     Object.entries(moduleAnswers).forEach(([qid, selected]) => {
-      const q = satPool.find(q => String(q.id) === String(qid));
-      if (!q) return;
-      const type = getQuestionType(q);
-      const correct = ["numeric", "gridIn"].includes(type)
-        ? String(selected).trim() === String(q.answer).trim()
-        : selected === q.answer;
-      ans.push({ qid: q.id, selected, correct });
+      selectedById[String(qid)] = selected;
     });
+  });
+  const ans = satPool.map(q => {
+    const hasResponse = Object.prototype.hasOwnProperty.call(selectedById, String(q.id));
+    const selected = hasResponse ? selectedById[String(q.id)] : undefined;
+    const type = getQuestionType(q);
+    const correct = hasResponse && (["numeric", "gridIn"].includes(type)
+      ? String(selected).trim() === String(q.answer).trim()
+      : selected === q.answer);
+    return { qid: q.id, selected, correct };
   });
   const totalSeconds = results.reduce((sum, r) => sum + (r.timeSpentSeconds || 0), 0);
   return { ans, pool: satPool, timeInfo: { timeLog: null, timeLeft: null, totalSeconds } };

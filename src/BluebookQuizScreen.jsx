@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getQuestionType } from "./content/index.js";
+import { decideAceBoardRoute, restoreSatSession, serializeSatSession } from "./sat/session.js";
 
 /* =========================================================================
    BLUEBOOK-STYLE SAT QUIZ ENGINE FOR ACEBOARD
@@ -389,7 +390,13 @@ export function BluebookQuizScreen({
   sectionLabel,        // e.g. "Section 1, Module 1: Reading and Writing"
   subject,             // "Reading and Writing" | "Math"
   durationMinutes,     // real Bluebook duration for this module
-    initialSecondsLeft,
+  initialSecondsLeft,
+  initialQuestionIndex = 0,
+  initialEliminated = {},
+  initialHighlights = {},
+  notesByQuestion = {},
+  setNotesByQuestion,
+  onSessionChange,
   isPracticeTest = true,
   userName,
   answers,             // { [questionId]: answerValue }
@@ -399,20 +406,25 @@ export function BluebookQuizScreen({
   onModuleComplete,    // (answers, timeSpentSeconds) => void
   onExit,              // () => void  (back to setup / abandon)
 }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-    const [secondsLeft, setSecondsLeft] = useState(initialSecondsLeft ?? durationMinutes * 60);
+  const [currentIndex, setCurrentIndex] = useState(initialQuestionIndex);
+  const [secondsLeft, setSecondsLeft] = useState(initialSecondsLeft ?? durationMinutes * 60);
   const [timerHidden, setTimerHidden] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [showFiveMinWarning, setShowFiveMinWarning] = useState(false);
   const [fiveMinWarningShown, setFiveMinWarningShown] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const [directionsOpen, setDirectionsOpen] = useState(true);
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [referenceOpen, setReferenceOpen] = useState(false);
+  const [questionZoom, setQuestionZoom] = useState(100);
+  const [highlights, setHighlights] = useState(initialHighlights);
+  const [draftHighlight, setDraftHighlight] = useState("");
   const [gridInValue, setGridInValue] = useState("");
   const [eliminatorMode, setEliminatorMode] = useState(false);
   const [paneWidth, setPaneWidth] = useState(50); // percentage
 const isDraggingRef = useRef(false);
-const [eliminated, setEliminated] = useState({}); // { [questionId]: Set of eliminated option indices }
+const [eliminated, setEliminated] = useState(() => Object.fromEntries(Object.entries(initialEliminated).map(([id, values]) => [id, new Set(values)])));
 function toggleEliminated(optionIndex) {
   setEliminated((prev) => {
     const cur = new Set(prev[q.id] || []);
@@ -425,9 +437,20 @@ function toggleEliminated(optionIndex) {
   const q = questions[currentIndex];
   const questionType = getQuestionType(q);
   const isMcq = questionType === "mcq";
-  function startDrag() {
+  const fontSize = (base) => `${base * questionZoom / 100}px`;
+function startDrag() {
   isDraggingRef.current = true;
   document.body.style.userSelect = "none";
+}
+function captureHighlight() {
+  const selected = window.getSelection?.()?.toString().trim();
+  if (selected) setDraftHighlight(selected.slice(0, 500));
+}
+function saveHighlight() {
+  if (!draftHighlight || !q) return;
+  setHighlights((previous) => ({ ...previous, [q.id]: [...(previous[q.id] || []), draftHighlight].slice(-10) }));
+  setDraftHighlight("");
+  window.getSelection?.()?.removeAllRanges?.();
 }
 
 useEffect(() => {
@@ -471,6 +494,14 @@ useEffect(() => {
       setFiveMinWarningShown(true);
     }
   }, [secondsLeft, fiveMinWarningShown]);
+
+  useEffect(() => {
+    onSessionChange?.({ currentQuestionIndex: currentIndex, secondsLeft, eliminated: Object.fromEntries(Object.entries(eliminated).map(([id, values]) => [id, [...values]])), highlights });
+  }, [currentIndex, answers, marked, eliminated, notesByQuestion, highlights]);
+
+  useEffect(() => {
+    if (secondsLeft > 0 && secondsLeft % 30 === 0) onSessionChange?.({ currentQuestionIndex: currentIndex, secondsLeft, eliminated: Object.fromEntries(Object.entries(eliminated).map(([id, values]) => [id, [...values]])), highlights });
+  }, [secondsLeft]);
 
   useEffect(() => {
     // sync grid-in text field with stored answer when navigating
@@ -570,6 +601,8 @@ useEffect(() => {
               🖩 Calculator
             </button>
           )}
+          {subject === "Math" && <button onClick={() => setReferenceOpen(true)} style={{ border: `1px solid ${TOKENS.border}`, background: referenceOpen ? TOKENS.blueLight : "#fff", color: TOKENS.navy, borderRadius: 6, padding: "6px 9px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Reference sheet</button>}
+          <div aria-label="Question text size" style={{ display: "flex", alignItems: "center", gap: 4, color: TOKENS.textMuted, fontSize: 10 }}><button aria-label="Decrease question text size" onClick={() => setQuestionZoom((value) => Math.max(80, value - 10))} style={{ border: `1px solid ${TOKENS.border}`, background: "#fff", borderRadius: 5, padding: "5px 7px", cursor: "pointer" }}>A−</button><span>{questionZoom}%</span><button aria-label="Increase question text size" onClick={() => setQuestionZoom((value) => Math.min(150, value + 10))} style={{ border: `1px solid ${TOKENS.border}`, background: "#fff", borderRadius: 5, padding: "5px 7px", cursor: "pointer" }}>A+</button></div>
           <button
             style={{
               border: "none",
@@ -579,9 +612,10 @@ useEffect(() => {
               fontWeight: 600,
               cursor: "pointer",
             }}
-            title="Highlight & take notes on the passage"
+            onClick={() => setNotesOpen((open) => !open)}
+            title="Open notes for this question"
           >
-            ✎ Highlights &amp; Notes
+            ✎ Notes
           </button>
           <button
   onClick={() => setEliminatorMode((v) => !v)}
@@ -723,6 +757,8 @@ useEffect(() => {
         </div>
       )}
             {/* Body */}
+        {referenceOpen && <div role="dialog" aria-modal="true" aria-label="AceBoard Math reference sheet" style={{ position: "fixed", inset: 0, zIndex: 120, background: "rgba(17,25,43,.42)", display: "grid", placeItems: "center", padding: 18 }} onClick={() => setReferenceOpen(false)}><section onClick={(event) => event.stopPropagation()} style={{ width: "min(540px, 100%)", maxHeight: "80vh", overflow: "auto", background: "#fff", borderRadius: 12, padding: 22, boxShadow: "0 18px 48px rgba(10,20,40,.25)" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ color: TOKENS.textMuted, fontSize: 10, letterSpacing: 1 }}>ACEBOARD TOOL</div><h2 style={{ color: TOKENS.navy, fontSize: 19, margin: "6px 0 2px" }}>Math reference sheet</h2></div><button aria-label="Close reference sheet" onClick={() => setReferenceOpen(false)} style={{ border: 0, background: "none", fontSize: 22, cursor: "pointer", color: TOKENS.textMuted }}>×</button></div><div style={{ color: TOKENS.textMuted, fontSize: 11, margin: "5px 0 14px" }}>AceBoard study aid. Check official test instructions for the tools available in any specific exam.</div>{[["Algebra", "(a + b)² = a² + 2ab + b²", "(a − b)² = a² − 2ab + b²", "a² − b² = (a − b)(a + b)"], ["Geometry", "Rectangle area: A = lw", "Triangle area: A = ½bh", "Circle area: A = πr²", "Circle circumference: C = 2πr"], ["Right triangles", "a² + b² = c²"], ["Solids", "Rectangular prism: V = lwh", "Cylinder: V = πr²h"]].map(([heading, ...items]) => <div key={heading} style={{ borderTop: `1px solid ${TOKENS.border}`, padding: "12px 0" }}><strong style={{ color: TOKENS.navy, fontSize: 12 }}>{heading}</strong>{items.map((item) => <div key={item} style={{ color: TOKENS.text, fontSize: 13, paddingTop: 6 }}>{item}</div>)}</div>)}</section></div>}
+        {notesOpen && <aside style={{ position: "fixed", zIndex: 70, right: 18, top: 94, width: "min(340px, calc(100vw - 36px))", background: "#fff", border: `1px solid ${TOKENS.border}`, borderRadius: 10, padding: 14, boxShadow: "0 12px 32px rgba(20,30,50,.2)" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><strong style={{ color: TOKENS.navy, fontSize: 13 }}>Question notes</strong><button aria-label="Close notes" onClick={() => setNotesOpen(false)} style={{ border: 0, background: "none", cursor: "pointer", color: TOKENS.textMuted }}>×</button></div><textarea aria-label={`Notes for question ${currentIndex + 1}`} value={notesByQuestion[q.id] || ""} onChange={(event) => setNotesByQuestion?.((prev) => ({ ...prev, [q.id]: event.target.value }))} maxLength={1000} placeholder="Jot down a thought to revisit…" style={{ width: "100%", minHeight: 130, resize: "vertical", border: `1px solid ${TOKENS.border}`, borderRadius: 7, padding: 10, font: `13px ${TOKENS.font}`, color: TOKENS.navy }} /><span style={{ fontSize: 10, color: TOKENS.textMuted }}>Saved with this practice session</span></aside>}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {isRW && q.passage && (
           <>
@@ -732,12 +768,14 @@ useEffect(() => {
                 fontFamily: TOKENS.serif,
                 padding: "28px 32px",
                 overflowY: "auto",
-                fontSize: 16,
+                fontSize: fontSize(16),
                 lineHeight: 1.7,
                 color: "#1A1A1A",
               }}
             >
-              {q.passage}
+              <div onMouseUp={captureHighlight}>{q.passage}</div>
+              {draftHighlight && <button onClick={saveHighlight} style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 5, background: TOKENS.blueLight, color: TOKENS.navy, padding: "5px 8px", fontSize: 11, cursor: "pointer" }}>Save selected text</button>}
+              {(highlights[q.id] || []).map((item, index) => <div key={`${q.id}-${index}`} style={{ marginTop: 8, borderLeft: `3px solid ${TOKENS.gold}`, padding: "4px 8px", background: "#fff8e8", fontSize: 12 }}>{item}</div>)}
             </div>
             <div
               onMouseDown={startDrag}
@@ -806,12 +844,14 @@ Mark for Review
           </div>
 
           {!isRW && q.passage && (
-            <div style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 16, color: "#1A1A1A" }}>
+            <div style={{ fontSize: fontSize(15), lineHeight: 1.6, marginBottom: 16, color: "#1A1A1A" }}>
               {q.passage}
             </div>
           )}
 
-                    <div style={{ fontSize: 16, lineHeight: 1.6, color: "#1A1A1A", marginBottom: 24, fontWeight: 500, fontFamily: TOKENS.serif }}>
+          {q.image && <img src={q.image} alt={q.imageAlt || `Question graphic for ${q.topic || "this item"}`} style={{ display: "block", maxWidth: "100%", maxHeight: 420, objectFit: "contain", margin: "12px 0 20px" }} />}
+
+                    <div style={{ fontSize: fontSize(16), lineHeight: 1.6, color: "#1A1A1A", marginBottom: 24, fontWeight: 500, fontFamily: TOKENS.serif }}>
             {q.question ?? q.stem}
           </div>
 
@@ -834,7 +874,7 @@ Mark for Review
                       border: selected ? `2px solid ${TOKENS.blue}` : `1px solid ${TOKENS.border}`,
                       background: selected ? TOKENS.blueLight : "#fff",
                       cursor: "pointer",
-                      fontSize: 15,
+                      fontSize: fontSize(15),
                       color: "#1A1A1A",
                     }}
                   >
@@ -1021,12 +1061,15 @@ function DirectionsScreen({ sectionLabel, subject, durationMinutes, onStart }) {
   );
 }
 
-function BreakScreen({ onContinue }) {
-  const [secondsLeft, setSecondsLeft] = useState(10 * 60);
+function BreakScreen({ onContinue, onTick, initialSecondsLeft = 10 * 60 }) {
+  const [secondsLeft, setSecondsLeft] = useState(initialSecondsLeft);
   useEffect(() => {
     if (secondsLeft <= 0) return;
     const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(t);
+  }, [secondsLeft]);
+  useEffect(() => {
+    if (secondsLeft % 30 === 0) onTick?.(secondsLeft);
   }, [secondsLeft]);
 
   return (
@@ -1052,18 +1095,19 @@ function BreakScreen({ onContinue }) {
         </div>
         <button
           onClick={onContinue}
+          disabled={secondsLeft > 0}
           style={{
-            background: TOKENS.blue,
-            color: "#fff",
+            background: secondsLeft > 0 ? TOKENS.border : TOKENS.blue,
+            color: secondsLeft > 0 ? TOKENS.textMuted : "#fff",
             border: "none",
             borderRadius: 8,
             padding: "10px 28px",
             fontWeight: 700,
             fontSize: 14,
-            cursor: "pointer",
+            cursor: secondsLeft > 0 ? "not-allowed" : "pointer",
           }}
         >
-          Resume Now
+          {secondsLeft > 0 ? "Break in progress" : "Continue to Math"}
         </button>
       </div>
     </div>
@@ -1229,7 +1273,7 @@ export function PracticeTestSelect({ allQuestions, onSelect, onBack, activeTest,
  * Expects `allQuestions` = your full QUESTIONS array (already imported
  * in App.jsx).
  */
-export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = true, userName, onFinish, onExit, onSaveExit, resumeState }) {
+export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = true, userName, onFinish, onExit, onSaveExit, onSessionChange, resumeState }) {
   const MODULE_SEQUENCE = [
     { subject: "Reading and Writing", module: "Module 1", label: "Section 1, Module 1: Reading and Writing" },
     { subject: "Reading and Writing", module: "Module 2", label: "Section 1, Module 2: Reading and Writing" },
@@ -1237,28 +1281,41 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
     { subject: "Math", module: "Module 2", label: "Section 2, Module 2: Math" },
   ];
 
-    const [stepIndex, setStepIndex] = useState(resumeState?.stepIndex ?? 0);
-  const [phase, setPhase] = useState(resumeState?.phase ?? "directions");
-  const [allAnswers, setAllAnswers] = useState(resumeState?.allAnswers ?? {});
+  const restored = restoreSatSession(resumeState) || resumeState || {};
+  const [stepIndex, setStepIndex] = useState(restored.currentModuleIndex ?? restored.stepIndex ?? 0);
+  const [phase, setPhase] = useState(restored.phase ?? "directions");
+  const [allAnswers, setAllAnswers] = useState(restored.responses ?? restored.allAnswers ?? {});
   const [allMarked, setAllMarked] = useState(() => {
-    if (!resumeState?.allMarked) return {};
-    return Object.fromEntries(
-      Object.entries(resumeState.allMarked).map(([k, v]) => [k, new Set(v)])
-    );
+    const saved = Object.fromEntries(Object.entries(restored.allMarked || {}).map(([k, v]) => [k, new Set(v)]));
+    if (restored.markedQuestionIds) {
+      const currentStep = MODULE_SEQUENCE[restored.currentModuleIndex ?? restored.stepIndex ?? 0];
+      if (currentStep) saved[`${currentStep.subject}-${currentStep.module}`] = new Set(restored.markedQuestionIds);
+    }
+    return saved;
   });
+  const [allNotes, setAllNotes] = useState(restored.notesByQuestion || {});
+  const [moduleSession, setModuleSession] = useState(restored.moduleSession || {});
+  const [routeDecisions, setRouteDecisions] = useState(restored.routeDecisions || {});
+  const [breakSecondsLeft, setBreakSecondsLeft] = useState(restored.breakSecondsLeft ?? 10 * 60);
   const [results, setResults] = useState([]);
 
   const step = MODULE_SEQUENCE[stepIndex];
   const moduleKey = `${step.subject}-${step.module}`;
   const durationMinutes = MODULE_DURATIONS[step.subject][step.module];
 
-  const moduleQuestions = allQuestions.filter(
+  const baseModuleQuestions = allQuestions.filter(
     (q) =>
       q.exam === "SAT" &&
       q.practiceTest === practiceTest &&
       q.subject === step.subject &&
       q.module === step.module
   );
+
+  const routeForSection = routeDecisions[step.subject];
+  const routeQuestions = step.module === "Module 2" && routeForSection
+    ? baseModuleQuestions.filter((question) => question.adaptivePath === routeForSection.route || question.adaptivePath === "shared")
+    : [];
+  const moduleQuestions = routeQuestions.length ? routeQuestions : baseModuleQuestions;
 
   const answers = allAnswers[moduleKey] || {};
   const marked = allMarked[moduleKey] || new Set();
@@ -1301,6 +1358,10 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
     ]);
 
     const isLastModule = stepIndex === MODULE_SEQUENCE.length - 1;
+    if (step.module === "Module 1") {
+      const route = decideAceBoardRoute({ correct: correctCount, total: moduleQuestions.length });
+      setRouteDecisions((previous) => ({ ...previous, [step.subject]: route }));
+    }
     if (isLastModule) {
       onFinish({
         results: [...results, {
@@ -1311,29 +1372,83 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
           timeSpentSeconds,
         }],
         answers: allAnswers,
+        routeDecisions,
+        scoringLabel: "AceBoard simulated practice estimate; not an official SAT score",
       });
       return;
     }
 
+    const nextStep = MODULE_SEQUENCE[stepIndex + 1];
+    setModuleSession({ currentQuestionIndex: 0, secondsLeft: MODULE_DURATIONS[nextStep.subject][nextStep.module] * 60, eliminated: {} });
     const goingToMath = MODULE_SEQUENCE[stepIndex + 1].subject === "Math" && step.subject === "Reading and Writing";
     setStepIndex((i) => i + 1);
     setPhase(goingToMath ? "break" : "directions");
   }
   function handleSaveAndExit(secondsLeft) {
-    const snapshot = {
+    const snapshot = serializeSatSession({
+      schemaVersion: 1,
+      testFormId: `aceboard-sat-${practiceTest}`,
       practiceTest,
+      currentModuleIndex: stepIndex,
       stepIndex,
       phase,
-      secondsLeft: secondsLeft ?? durationMinutes * 60,
+      currentQuestionIndex: moduleSession.currentQuestionIndex ?? 0,
+      remainingSeconds: secondsLeft ?? moduleSession.secondsLeft ?? durationMinutes * 60,
+      responses: allAnswers,
       allAnswers,
-      allMarked: Object.fromEntries(
-        Object.entries(allMarked).map(([k, v]) => [k, [...v]])
-      ),
-      savedAt: Date.now(),
-    };
+      markedQuestionIds: [...marked],
+      allMarked: Object.fromEntries(Object.entries(allMarked).map(([k, v]) => [k, [...v]])),
+      eliminatedChoices: moduleSession.eliminated || {},
+      notesByQuestion: allNotes,
+      highlightsByQuestion: moduleSession.highlights || {},
+      routeDecisions,
+      breakSecondsLeft,
+      moduleSession,
+      questionIds: allQuestions.filter((q) => q.exam === "SAT" && q.practiceTest === practiceTest).map((q) => q.id),
+    });
     onSaveExit(snapshot);
     onExit();
   }
+  const handleModuleSessionChange = useCallback((session) => {
+    setModuleSession(session);
+    const snapshot = serializeSatSession({
+      schemaVersion: 1,
+      testFormId: `aceboard-sat-${practiceTest}`,
+      practiceTest,
+      currentModuleIndex: stepIndex,
+      stepIndex,
+      phase,
+      currentQuestionIndex: session.currentQuestionIndex,
+      remainingSeconds: session.secondsLeft,
+      responses: allAnswers,
+      allAnswers,
+      markedQuestionIds: [...marked],
+      allMarked: Object.fromEntries(Object.entries(allMarked).map(([k, v]) => [k, [...v]])),
+      eliminatedChoices: session.eliminated || {},
+      notesByQuestion: allNotes,
+      highlightsByQuestion: session.highlights || {},
+      routeDecisions,
+      breakSecondsLeft,
+      moduleSession: session,
+      questionIds: allQuestions.filter((q) => q.exam === "SAT" && q.practiceTest === practiceTest).map((q) => q.id),
+    });
+    onSessionChange?.(snapshot);
+  }, [practiceTest, stepIndex, phase, allAnswers, marked, allMarked, allNotes, routeDecisions, breakSecondsLeft, allQuestions, onSessionChange]);
+  useEffect(() => {
+    if (!onSessionChange) return;
+    onSessionChange(serializeSatSession({
+      schemaVersion: 1, testFormId: `aceboard-sat-${practiceTest}`, practiceTest,
+      currentModuleIndex: stepIndex, stepIndex, phase,
+      currentQuestionIndex: moduleSession.currentQuestionIndex ?? 0,
+      remainingSeconds: moduleSession.secondsLeft ?? restored.remainingSeconds ?? restored.secondsLeft ?? durationMinutes * 60,
+      responses: allAnswers, allAnswers,
+      markedQuestionIds: [...marked],
+      allMarked: Object.fromEntries(Object.entries(allMarked).map(([k, v]) => [k, [...v]])),
+      eliminatedChoices: moduleSession.eliminated || {}, notesByQuestion: allNotes, highlightsByQuestion: moduleSession.highlights || {},
+      routeDecisions, breakSecondsLeft, moduleSession,
+      questionIds: allQuestions.filter((q) => q.exam === "SAT" && q.practiceTest === practiceTest).map((q) => q.id),
+    }));
+  }, [stepIndex, phase, allAnswers, allMarked, allNotes, routeDecisions, breakSecondsLeft]);
   if (moduleQuestions.length === 0) {
     return (
       <div style={{ fontFamily: TOKENS.font, padding: 40, textAlign: "center", color: TOKENS.textMuted }}>
@@ -1350,7 +1465,7 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
   }
 
   if (phase === "break") {
-    return <BreakScreen onContinue={() => setPhase("directions")} />;
+    return <BreakScreen initialSecondsLeft={breakSecondsLeft} onTick={setBreakSecondsLeft} onContinue={() => { setBreakSecondsLeft(10 * 60); setPhase("directions"); }} />;
   }
 
   if (phase === "directions") {
@@ -1359,7 +1474,6 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
         sectionLabel={step.label}
         subject={step.subject}
         durationMinutes={durationMinutes}
-              initialSecondsLeft={resumeState && stepIndex === resumeState.stepIndex ? resumeState.secondsLeft : undefined}
         onStart={() => setPhase("quiz")}
       />
     );
@@ -1372,6 +1486,13 @@ export function SatTestRunner({ allQuestions, practiceTest, isPracticeTest = tru
       sectionLabel={step.label}
       subject={step.subject}
       durationMinutes={durationMinutes}
+      initialSecondsLeft={stepIndex === (restored.currentModuleIndex ?? restored.stepIndex) ? restored.remainingSeconds ?? restored.secondsLeft : undefined}
+      initialQuestionIndex={stepIndex === (restored.currentModuleIndex ?? restored.stepIndex) ? restored.currentQuestionIndex ?? 0 : 0}
+      initialEliminated={stepIndex === (restored.currentModuleIndex ?? restored.stepIndex) ? restored.eliminatedChoices || {} : {}}
+      initialHighlights={moduleSession.highlights || restored.highlightsByQuestion || {}}
+      notesByQuestion={allNotes}
+      setNotesByQuestion={setAllNotes}
+      onSessionChange={handleModuleSessionChange}
       isPracticeTest={isPracticeTest}
       answers={answers}
       setAnswers={setAnswersForModule}
