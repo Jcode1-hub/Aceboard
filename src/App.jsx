@@ -8,6 +8,7 @@ import { SatTestRunner, PracticeTestSelect } from './BluebookQuizScreen';
 import { QUESTIONS, getQuestionType, getQuestionText, normalizeQuestionSearchText, buildQuestionSearchText, QUESTION_SEARCH_TEXT_BY_ID } from './content';
 import StudentWorkspace from './platform/StudentWorkspace.jsx';
 import { getPracticeEligibleQuestions } from './platform/workspace.js';
+import { LESSONS } from './learning/catalog.js';
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
@@ -1036,7 +1037,7 @@ function ExamLogo({ exam, size = 40 }) {
 }
 
 // ── HOME SCREEN ───────────────────────────────────────────────────────────────
-function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dailyActivity, subjectStats }) {
+function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dailyActivity, subjectStats, publishedContent = [] }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modalContent, setModalContent] = useState(null); // "news" | "faq" | null
   const [newsItems, setNewsItems] = useState([]);
@@ -1284,7 +1285,7 @@ function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dai
                 <ExamLogo exam={exam} size={36} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF", marginBottom: 2 }}>{exam}</div>
-                  <div style={S.small}>{getPracticeEligibleQuestions(QUESTIONS).filter(q => q.exam === exam).length} approved questions</div>
+                  <div style={S.small}>{getPracticeEligibleQuestions(QUESTIONS, publishedContent).filter(q => q.exam === exam).length} approved questions</div>
                 </div>
               </button>
             ))}
@@ -1311,7 +1312,7 @@ function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dai
 // ── QUIZ CONFIG SCREEN ─────────────────────────────────────────────────────────
 const MOCK_ELIGIBLE = ["WAEC", "JAMB", "NECO"];
 
-function PracticeSetup({ profile, defaultExam, defaultSubject, defaultTopic, onBegin, onBack }) {
+function PracticeSetup({ profile, publishedContent, defaultExam, defaultSubject, defaultTopic, onBegin, onBack }) {
   const myExams = profile?.exams?.length ? profile.exams : EXAMS;
   const [exam, setExam] = useState(defaultExam || myExams[0] || "WAEC");
   const [subjects, setSubjects] = useState(defaultSubject ? [defaultSubject] : []);
@@ -1328,7 +1329,7 @@ function PracticeSetup({ profile, defaultExam, defaultSubject, defaultTopic, onB
   // Only show subjects the student actually picked during onboarding for this exam —
   // falls back to the full master list if they never set targets for this exam
   // (e.g. picked it as an exam but skipped/hasn't done its config step).
-  const practiceQuestions = getPracticeEligibleQuestions(QUESTIONS);
+  const practiceQuestions = getPracticeEligibleQuestions(QUESTIONS, publishedContent);
   const allSubjectsForExam = [...new Set(practiceQuestions.filter(q => q.exam === exam).map(q => q.subject))];
   const onboardedSubjects = (() => {
     const t = profile?.targets?.[exam];
@@ -1542,8 +1543,8 @@ function TimerRing({ timeLeft, totalSeconds, size = 44 }) {
 }
 
 // ── QUIZ SCREEN ───────────────────────────────────────────────────────────────
-function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
-  const pool = getPracticeEligibleQuestions(QUESTIONS).filter(q =>
+function QuizScreen({ config, publishedContent, bookmarks, onToggleBookmark, onFinish, onBack }) {
+  const pool = getPracticeEligibleQuestions(QUESTIONS, publishedContent).filter(q =>
     q.exam === config.exam &&
     (!config.subjects || config.subjects.length === 0 || config.subjects.includes(q.subject)) &&
     (!config.topic || config.topic === "All Topics" || q.topic === config.topic) &&
@@ -2040,10 +2041,15 @@ function SatResultsScreen({ answers, questions, timeInfo, userName, onHome, onRe
     </div>
   );
 }
-function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, onHome, onReview }) {
-  const correct = answers.filter(a => a.correct).length;
-  const total = answers.length;
-  const pct = Math.round((correct / total) * 100);
+function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, onHome, onReview, onPracticeTopic }) {
+  const safeAnswers = answers || [];
+  const safeQuestions = questions || [];
+  const correct = safeAnswers.filter((answer) => answer.correct).length;
+  const total = safeQuestions.length;
+  const answered = safeAnswers.length;
+  const incorrect = answered - correct;
+  const unanswered = Math.max(0, total - answered);
+  const pct = total ? Math.round((correct / total) * 100) : 0;
 
   const grade = pct >= 75 ? { label: "A1 🏆", color: "#22C55E", remark: "Excellent" } :
     pct >= 70 ? { label: "B2 ⭐", color: "#22C55E", remark: "Very Good" } :
@@ -2056,15 +2062,27 @@ function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, o
                   { label: "F9 💪", color: "#EF4444", remark: "Fail" };
 
   const bySubject = {};
-  answers.forEach((a, i) => {
-    const q = questions[i];
-    if (!bySubject[q.subject]) bySubject[q.subject] = { correct: 0, total: 0, topics: {} };
-    bySubject[q.subject].total++;
-    if (a.correct) bySubject[q.subject].correct++;
-    if (!bySubject[q.subject].topics[q.topic]) bySubject[q.subject].topics[q.topic] = { correct: 0, total: 0 };
-    bySubject[q.subject].topics[q.topic].total++;
-    if (a.correct) bySubject[q.subject].topics[q.topic].correct++;
+  const topicTotals = {};
+  safeQuestions.forEach((question) => {
+    const answer = safeAnswers.find((entry) => entry.qid === question.id);
+    if (!bySubject[question.subject]) bySubject[question.subject] = { correct: 0, answered: 0, total: 0 };
+    bySubject[question.subject].total += 1;
+    if (answer) {
+      bySubject[question.subject].answered += 1;
+      if (answer.correct) bySubject[question.subject].correct += 1;
+    }
+    const key = `${question.subject}::${question.topic}`;
+    if (!topicTotals[key]) topicTotals[key] = { subject: question.subject, topic: question.topic, correct: 0, answered: 0, total: 0 };
+    topicTotals[key].total += 1;
+    if (answer) {
+      topicTotals[key].answered += 1;
+      if (answer.correct) topicTotals[key].correct += 1;
+    }
   });
+  const weakestTopic = Object.values(topicTotals).sort((a, b) => (a.correct / (a.total || 1)) - (b.correct / (b.total || 1)))[0];
+  const elapsedSeconds = timeInfo?.totalSeconds != null
+    ? Math.max(0, timeInfo.totalSeconds - (timeInfo.timeLeft || 0))
+    : (timeInfo?.timeLog || []).reduce((sum, entry) => sum + (Number(entry.seconds) || 0), 0);
 
   const timeUsedPct = timeInfo && timeInfo.totalSeconds ? Math.round(((timeInfo.totalSeconds - timeInfo.timeLeft) / timeInfo.totalSeconds) * 100) : null;
   const avgActual = timeInfo && timeInfo.timeLog && timeInfo.timeLog.length > 0 ? timeInfo.timeLog.reduce((a, b) => a + b.seconds, 0) / timeInfo.timeLog.length : null;
@@ -2078,10 +2096,13 @@ function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, o
         <div style={{ fontSize: 56, fontWeight: 900, color: grade.color, letterSpacing: "-0.04em" }}>{pct}%</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: grade.color, marginTop: 4 }}>{grade.label}</div>
         <div style={{ fontSize: 13, color: "#94A3B8", marginTop: 2 }}>{grade.remark}</div>
-        <div style={{ ...S.body, marginTop: 8 }}>{correct} of {total} correct</div>
+        <div style={{ ...S.body, marginTop: 8 }}>{correct} correct · {incorrect} incorrect · {unanswered} unanswered</div>
       </div>
 
       <div style={{ ...S.px, ...S.gap(14) }}>
+        <div style={{ ...S.card, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 12 }}>
+          {[ ["Accuracy", `${pct}%`], ["Correct", `${correct}/${total}`], ["Incorrect", String(incorrect)], ["Unanswered", String(unanswered)], ["Time", `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`] ].map(([label, value]) => <div key={label}><div style={S.small}>{label}</div><strong style={{ display: "block", color: "#F0F2FF", fontSize: 19, marginTop: 5 }}>{value}</strong></div>)}
+        </div>
         {/* Performance breakdown - rings + time trend */}
         {timeInfo && timeInfo.timeLog && timeInfo.timeLog.length > 0 && (
           <div style={S.card}>
@@ -2113,12 +2134,12 @@ function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, o
                       <div style={S.progressFill(p, p >= 70 ? "#22C55E" : p >= 50 ? "#F59E0B" : "#EF4444")} />
                     </div>
                     <div style={{ marginTop: 10, paddingLeft: 12, borderLeft: "2px solid #1E2A4A", display: "flex", flexDirection: "column", gap: 8 }}>
-                      {Object.entries(data.topics).map(([topicName, tData]) => {
-                        const tp = Math.round((tData.correct / tData.total) * 100);
+                      {Object.values(topicTotals).filter((topicData) => topicData.subject === subj).map((topicData) => {
+                        const tp = Math.round((topicData.correct / topicData.total) * 100);
                         return (
-                          <div key={topicName} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: 12, color: "#94A3B8" }}>{topicName}</span>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: tp >= 70 ? "#22C55E" : tp >= 50 ? "#F59E0B" : "#EF4444" }}>{tData.correct}/{tData.total}</span>
+                          <div key={topicData.topic} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: "#94A3B8" }}>{topicData.topic}{topicData.answered < topicData.total ? ` · ${topicData.total - topicData.answered} unanswered` : ""}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: tp >= 70 ? "#22C55E" : tp >= 50 ? "#F59E0B" : "#EF4444" }}>{topicData.correct}/{topicData.total}</span>
                           </div>
                         );
                       })}
@@ -2130,6 +2151,13 @@ function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, o
           </div>
         )}
 
+        {weakestTopic && <div style={{ ...S.card, border: "1px solid #66511e", background: "#1d1b12" }}>
+          <p style={{ ...S.label, marginBottom: 7, color: "#f0c86a" }}>YOUR NEXT STEP</p>
+          <strong style={{ color: "#fff", fontSize: 16 }}>You're weakest in {weakestTopic.topic}</strong>
+          <p style={{ ...S.body, fontSize: 12 }}>You answered {weakestTopic.correct} of {weakestTopic.total} correctly in {weakestTopic.subject} · {weakestTopic.topic}. Review the matching lesson, then try a focused set.</p>
+          <button style={S.btnPrimary} onClick={() => onPracticeTopic?.(safeQuestions.find((question) => question.subject === weakestTopic.subject && question.topic === weakestTopic.topic))}>Practice {weakestTopic.topic}</button>
+        </div>}
+
         {/* Result slip */}
         <div style={S.card}>
           <p style={{ ...S.label, marginBottom: 12 }}>{questions[0]?.exam} Result Slip</p>
@@ -2138,25 +2166,6 @@ function ResultsScreen({ answers, questions, mode, timeInfo, profile, onRetry, o
               <span style={S.small}>Username</span>
               <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600 }}>{profile?.name || "Student"}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={S.small}>Subject(s)</span>
-              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600, textAlign: "right" }}>{[...new Set(questions.map(q => q.subject))].join(", ")}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={S.small}>Exam Body</span>
-              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600 }}>{questions[0]?.exam}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={S.small}>Date</span>
-              <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600 }}>{new Date().toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Result slip */}
-        <div style={S.card}>
-          <p style={{ ...S.label, marginBottom: 12 }}>Result Slip</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={S.small}>Subject(s)</span>
               <span style={{ fontSize: 13, color: "#F0F2FF", fontWeight: 600, textAlign: "right" }}>{[...new Set(questions.map(q => q.subject))].join(", ")}</span>
@@ -2907,13 +2916,13 @@ function CollegesScreen({ profile }) {
 }
 
 // ── QUESTION SEARCH ───────────────────────────────────────────────────────────
-function QuestionSearchScreen({ onBack, profile }) {
+function QuestionSearchScreen({ onBack, profile, publishedContent }) {
   const [examFilter, setExamFilter] = useState("All");
   const [subjectFilter, setSubjectFilter] = useState("All Subjects");
   const [keyword, setKeyword] = useState("");
   const [selected, setSelected] = useState(null);
   const userExams = profile?.exams || [];
-  const eligibleQuestions = getPracticeEligibleQuestions(QUESTIONS);
+  const eligibleQuestions = getPracticeEligibleQuestions(QUESTIONS, publishedContent);
   const scopedQs = userExams.length > 0 ? eligibleQuestions.filter(q => userExams.includes(q.exam)) : eligibleQuestions;
   const normalizedKeyword = normalizeQuestionSearchText(keyword);
   const examOptions = ["All", ...new Set(scopedQs.map(q => q.exam))];
@@ -3699,7 +3708,7 @@ function AboutScreen({ user, onSignOut, profile, missedQuestions }) {
             { icon: "⚡", text: "Unlimited AI study sessions — no daily cap" },
             { icon: "📊", text: "Advanced analytics & readiness predictions" },
             { icon: "🏆", text: "Mock full-length exams with timed conditions" },
-            { icon: "📚", text: "Full question banks for every exam year" },
+            { icon: "📚", text: "Growing, reviewed question catalogs across supported exams" },
             { icon: "🎯", text: "Personalised weak-topic drill mode" },
             { icon: "🔔", text: "Daily reminders & streak protection" },
           ].map(b => (
@@ -4169,7 +4178,7 @@ function GradeMascot({ feedback }) {
   );
 }
 
-function OnboardingScreen({ onComplete }) {
+function OnboardingScreen({ onComplete, publishedContent = [] }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [selectedExams, setSelectedExams] = useState([]);
@@ -4737,6 +4746,7 @@ const [onboarded, setOnboarded] = useState(false);
   const [subjectStats, setSubjectStats] = useState({});
   const [missedQuestions, setMissedQuestions] = useState({});
   const [learningProgress, setLearningProgress] = useState({});
+  const [publishedContent, setPublishedContent] = useState([]);
   const [satOfficialResults, setSatOfficialResults] = useState([]);
   const handleSatSessionChange = useCallback((snapshot) => setSatActiveTest(snapshot), []);
     const [satActiveTest, setSatActiveTest] = useState(null);
@@ -4819,6 +4829,14 @@ const [onboarded, setOnboarded] = useState(false);
 
   const handleStart = (exam = null, subject = null, topic = null) => {
   const chosenExam = exam || profile?.exams?.find(e => e !== "SAT") || profile?.exams?.[0] || null;
+    const availableForSelection = getPracticeEligibleQuestions(QUESTIONS, publishedContent).some((question) => question.exam === chosenExam && (!subject || question.subject === subject) && (!topic || question.topic === topic));
+    if (!availableForSelection) {
+      const lesson = LESSONS.find((item) => item.exam === chosenExam && (!subject || item.subject === subject) && (!topic || item.topic === topic)) || LESSONS.find((item) => item.exam === chosenExam && (!subject || item.subject === subject));
+      setSelectedLessonId(lesson?.id || null);
+      setScreen("home");
+      setTab("learn");
+      return;
+    }
     setDefaultExam(chosenExam);
     setDefaultSubject(subject);
     setDefaultTopic(topic);
@@ -4887,6 +4905,20 @@ const [onboarded, setOnboarded] = useState(false);
     setSatOfficialResults(prev => [record, ...prev]);
   };
 
+  const refreshPublishedContent = useCallback(async () => {
+    if (!user) { setPublishedContent([]); return; }
+    try {
+      const result = await callChallengeFunction("getPublishedQuestionManifest", {});
+      setPublishedContent(Array.isArray(result?.questions) ? result.questions : []);
+    } catch {
+      // Older deployments may not yet expose the manifest callable. Keep the
+      // publication gate closed until it is available.
+      setPublishedContent([]);
+    }
+  }, [user]);
+
+  useEffect(() => { refreshPublishedContent(); }, [refreshPublishedContent]);
+
   const handleRetry = () => {
     setQuizAnswers(null);
     setScreen("quiz");
@@ -4908,19 +4940,19 @@ const [onboarded, setOnboarded] = useState(false);
 
   if (!onboarded) return (
     <div style={shellStyle}>
-      <OnboardingScreen onComplete={handleOnboardingComplete} />
+      <OnboardingScreen onComplete={handleOnboardingComplete} publishedContent={publishedContent} />
     </div>
   );
   if (!onboarded) return (
     <div style={shellStyle}>
-      <OnboardingScreen onComplete={handleOnboardingComplete} />
+      <OnboardingScreen onComplete={handleOnboardingComplete} publishedContent={publishedContent} />
     </div>
   );
 
   // If in quiz flow, render quiz screens ignoring tabs
   if (screen === "config") return (
     <div style={shellStyle}>
-      <PracticeSetup profile={profile} defaultExam={defaultExam} defaultSubject={defaultSubject} defaultTopic={defaultTopic} onBegin={handleBegin} onBack={() => setScreen("home")} />
+      <PracticeSetup profile={profile} publishedContent={publishedContent} defaultExam={defaultExam} defaultSubject={defaultSubject} defaultTopic={defaultTopic} onBegin={handleBegin} onBack={() => setScreen("home")} />
     </div>
   );
 
@@ -4931,12 +4963,12 @@ const [onboarded, setOnboarded] = useState(false);
                   onSaveExit={(snapshot) => setSatActiveTest(snapshot)}
           onSessionChange={handleSatSessionChange}
                   userName={user?.displayName || "Student"}
-          allQuestions={getPracticeEligibleQuestions(QUESTIONS)}
+          allQuestions={getPracticeEligibleQuestions(QUESTIONS, publishedContent)}
           practiceTest={quizConfig.practiceTest}
                     resumeState={satActiveTest?.practiceTest === quizConfig.practiceTest ? satActiveTest : null}
           isPracticeTest={quizConfig.mode === "practice"}
                     onFinish={(payload) => {
-            const satPool = getPracticeEligibleQuestions(QUESTIONS).filter(
+            const satPool = getPracticeEligibleQuestions(QUESTIONS, publishedContent).filter(
               q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest
             );
             const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
@@ -4968,6 +5000,7 @@ const [onboarded, setOnboarded] = useState(false);
       ) : (
         <QuizScreen
           config={quizConfig}
+          publishedContent={publishedContent}
           bookmarks={bookmarks}
           onToggleBookmark={handleToggleBookmark}
           onFinish={handleFinish}
@@ -4991,7 +5024,7 @@ const [onboarded, setOnboarded] = useState(false);
           onReview={() => setScreen("review")}
         />
       ) : (
-        <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} timeInfo={quizTimeInfo} profile={profile} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} />
+        <ResultsScreen answers={quizAnswers} questions={quizPool} mode={quizConfig?.mode} timeInfo={quizTimeInfo} profile={profile} onRetry={handleRetry} onHome={handleHome} onReview={() => setScreen("review")} onPracticeTopic={(question) => question && handleStart(question.exam, question.subject, question.topic)} />
       )}
     </div>
   )
@@ -5008,7 +5041,7 @@ const [onboarded, setOnboarded] = useState(false);
 
   if (screen === "search") return (
     <div style={shellStyle}>
-      <QuestionSearchScreen onBack={() => setScreen("home")} profile={profile} />
+      <QuestionSearchScreen onBack={() => setScreen("home")} profile={profile} publishedContent={publishedContent} />
     </div>
   );
 
@@ -5020,7 +5053,7 @@ const [onboarded, setOnboarded] = useState(false);
     if (screen === "selectSatTest") return (
     <div style={shellStyle}>
       <PracticeTestSelect
-        allQuestions={getPracticeEligibleQuestions(QUESTIONS)}
+        allQuestions={getPracticeEligibleQuestions(QUESTIONS, publishedContent)}
         activeTest={satActiveTest}
         completedTests={satCompletedTests}
         onSelect={(practiceTestNumber) => {
@@ -5035,7 +5068,7 @@ const [onboarded, setOnboarded] = useState(false);
           setScreen("quiz");
         }}
                 onViewResults={(t) => {
-          const pool = getPracticeEligibleQuestions(QUESTIONS).filter(
+          const pool = getPracticeEligibleQuestions(QUESTIONS, publishedContent).filter(
             q => q.exam === "SAT" && q.practiceTest === t.practiceTest
           );
           setQuizPool(pool);
@@ -5048,13 +5081,14 @@ const [onboarded, setOnboarded] = useState(false);
     </div>
   );
 
-  const primaryAreas = ["home", "practice", "learn", "challenges", "analytics", "more", "sat-resources", "leaderboard", "resources", "search"];
+  const primaryAreas = ["home", "practice", "learn", "challenges", "analytics", "more", "leaderboard", "content-review", "sat-resources", "resources", "search"];
   const isPrimaryArea = primaryAreas.includes(tab);
   const navItems = [
     { id: "home", label: "Home", icon: "home" },
     { id: "practice", label: "Practice", icon: "book" },
     { id: "learn", label: "Learn", icon: "school" },
     { id: "challenges", label: "Challenges", icon: "sparkles" },
+    { id: "leaderboard", label: "Leaderboard", icon: "chart" },
     { id: "analytics", label: "Progress", icon: "chart" },
     { id: "more", label: "More", icon: "menu" },
   ];
@@ -5067,6 +5101,7 @@ const [onboarded, setOnboarded] = useState(false);
         stats={stats}
         bookmarks={bookmarks}
         questions={QUESTIONS}
+        publishedContent={publishedContent}
         learningProgress={learningProgress}
         officialSatResults={satOfficialResults}
         onSaveOfficialSatResult={handleSaveOfficialSatResult}
@@ -5074,6 +5109,10 @@ const [onboarded, setOnboarded] = useState(false);
         startChallenge={(challengeId) => callChallengeFunction("startChallenge", { challengeId })}
         submitChallenge={(challengeId, responses) => callChallengeFunction("submitChallengeAttempt", { challengeId, responses })}
         getLeaderboard={(scope) => callChallengeFunction("getChallengeLeaderboard", { scope })}
+        getReviewState={() => callChallengeFunction("getQuestionReviewState", {})}
+        recordReview={(data) => callChallengeFunction("recordQuestionReview", data)}
+        createDailyChallenge={(data) => callChallengeFunction("createDailyChallenge", data)}
+        onRefreshPublishedContent={refreshPublishedContent}
         onStartPractice={(exam, subject, topic) => handleStart(exam, subject, topic)}
         onStartSatFullTest={() => setScreen("selectSatTest")}
         onOpenLegacy={(destination) => {

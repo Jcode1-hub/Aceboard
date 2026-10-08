@@ -1,14 +1,17 @@
 import { LESSONS } from "../learning/catalog.js";
 import { getExamConfig } from "../exams/registry.js";
 import { assessQuestionPublication } from "../content/validation.js";
+import { materializePublishedQuestion } from "../content/review.js";
 
-const practiceEligibilityCache = new WeakMap();
-export function getPracticeEligibleQuestions(questions) {
-  return questions.filter((question) => {
-    if (!question || typeof question !== "object") return false;
-    if (!practiceEligibilityCache.has(question)) practiceEligibilityCache.set(question,
-      question.publicationStatus === "published" && assessQuestionPublication(question).allowed);
-    return practiceEligibilityCache.get(question);
+export function getPracticeEligibleQuestions(questions, decisions = []) {
+  const byId = new Map(decisions.map((decision) => [decision.questionId, decision]));
+  return questions.flatMap((question) => {
+    const decision = byId.get(question?.id);
+    if (decision) {
+      const reviewed = materializePublishedQuestion(question, decision);
+      return reviewed ? [reviewed] : [];
+    }
+    return question?.publicationStatus === "published" && assessQuestionPublication(question).allowed ? [question] : [];
   });
 }
 
@@ -43,9 +46,9 @@ export function validateOfficialSatResult(input) {
   return { valid: errors.length === 0, errors };
 }
 
-export function getExamPracticeAvailability(exam, questions) {
+export function getExamPracticeAvailability(exam, questions, decisions = []) {
   const config = getExamConfig(exam);
-  const eligible = getPracticeEligibleQuestions(questions);
+  const eligible = getPracticeEligibleQuestions(questions, decisions);
   const bySubject = Object.fromEntries(config.subjects.map(({ name }) => [name, eligible.filter((q) => q.exam === exam && q.subject === name).length]));
   return { total: Object.values(bySubject).reduce((sum, count) => sum + count, 0), bySubject };
 }

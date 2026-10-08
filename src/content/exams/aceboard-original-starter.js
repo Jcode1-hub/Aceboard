@@ -201,3 +201,13 @@ const datasets = [
 ];
 
 export const aceBoardOriginalStarterQuestions = datasets.flatMap(([exam, subject, rows, options]) => make(exam, subject, rows, options || {}));
+
+const releaseCounts = {
+  JAMB: 3, WAEC: 3, NECO: 3, SAT: 3,
+  IGCSE: 2, ACT: 2, IELTS: 2,
+};
+export const RELEASE_QUESTION_IDS = datasets.flatMap(([exam, subject, rows]) => {
+  if (exam === "WAEC" && ["Economics", "Government"].includes(subject)) return [];
+  const count = releaseCounts[exam] || 0;
+  return rows.slice(0, count).map((_, index) => `ab-${exam.toLowerCase()}-${subject.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${String(index + 1).padStart(2, "0")}`);
+});

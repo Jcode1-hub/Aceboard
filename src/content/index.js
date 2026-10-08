@@ -1,5 +1,5 @@
 import { jambPhysicsQuestions } from "./exams/jamb/physics.js";
-import { aceBoardOriginalStarterQuestions } from "./exams/aceboard-original-starter.js";
+import { aceBoardOriginalStarterQuestions, RELEASE_QUESTION_IDS } from "./exams/aceboard-original-starter.js";
 import { getQuestionType } from "./schema.js";
 import { CONTENT_SOURCES_BY_ID } from "./sources.js";
 export { CONTENT_RIGHTS_STATES, CONTENT_STATES, CONTENT_STATE_TRANSITIONS, PROVENANCE_ACQUISITION_METHODS, PROVENANCE_KINDS, PUBLICATION_STATES, QUESTION_TYPES, canTransitionContentState, getQuestionText, getQuestionType } from "./schema.js";
@@ -34,6 +34,9 @@ export const LEGACY_QUESTIONS = jambPhysicsQuestions.map((question) => ({
 // Their draft lifecycle and rights metadata keep them out of student practice
 // and challenge publication until a human editor clears both gates.
 export const ACEBOARD_STARTER_QUESTIONS = aceBoardOriginalStarterQuestions;
+export const RELEASE_QUESTIONS = ACEBOARD_STARTER_QUESTIONS.filter((question) => RELEASE_QUESTION_IDS.includes(question.id));
+export { RELEASE_QUESTION_IDS };
+export { fingerprintReviewQuestion, getReviewableReleaseQuestions, materializePublishedQuestion, materializePublishedQuestions } from "./review.js";
 export const QUESTIONS = [...LEGACY_QUESTIONS, ...ACEBOARD_STARTER_QUESTIONS];
 
 /** Normalize searchable fields without changing the canonical question. */

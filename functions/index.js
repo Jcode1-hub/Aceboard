@@ -4,6 +4,7 @@ const Anthropic = require("@anthropic-ai/sdk");
 const admin = require("firebase-admin");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { validateChallengeDefinition, scoreChallenge, publicChallenge, rankAttempts, getLeaderboardScopeKeys } = require("./challengeLogic");
+const { prepareQuestionReview, fingerprintReviewQuestion } = require("./contentReviewLogic");
 
 if (!admin.apps.length) admin.initializeApp();
 const firestore = admin.firestore();
@@ -167,4 +168,79 @@ exports.getChallengeLeaderboard = onCall(async (request) => {
   const snapshot = await firestore.collection("leaderboards").doc(encodeURIComponent(scope)).collection("entries").orderBy("points", "desc").limit(100).get();
   const entries = rankAttempts(snapshot.docs.map((doc) => doc.data()).map(({ uid, ...entry }) => entry));
   return { scope, entries: entries.map(({ displayName, points, completedCount, bestScore }) => ({ displayName: safeName(displayName), points, completedCount, bestScore })) };
+});
+
+function requireContentAdmin(request) {
+  const uid = requireStudent(request);
+  if (request.auth.token.admin !== true) throw new HttpsError("permission-denied", "A trusted content administrator role is required.");
+  return uid;
+}
+
+exports.getQuestionReviewState = onCall(async (request) => {
+  requireContentAdmin(request);
+  const snapshot = await firestore.collection("contentReviews").limit(200).get();
+  return { reviews: snapshot.docs.map((doc) => ({ questionId: doc.id, ...doc.data() })) };
+});
+
+exports.getPublishedQuestionManifest = onCall(async (request) => {
+  requireStudent(request);
+  const snapshot = await firestore.collection("contentReviews").where("publicationStatus", "==", "published").limit(200).get();
+  return { questions: snapshot.docs.filter((doc) => doc.data().reviewOutcome === "approved" && doc.data().rightsStatus === "verified" && doc.data().contentRights === "permitted").map((doc) => {
+    const { questionFingerprint, questionId, reviewOutcome, publicationStatus, rightsStatus, contentRights, rightsEvidence, reviewer, reviewedAt, sourceId } = doc.data();
+    return { questionId: questionId || doc.id, questionFingerprint, reviewOutcome, publicationStatus, rightsStatus, contentRights, rightsEvidence, reviewer, reviewedAt, sourceId, reviewId: doc.id };
+  }) };
+});
+
+exports.recordQuestionReview = onCall(async (request) => {
+  const uid = requireContentAdmin(request);
+  const { action, question, questionId, notes, confirmOriginalRights } = request.data || {};
+  const id = String(questionId || "");
+  if (!/^ab-(jamb|waec|neco|igcse|sat|act|ielts)-[a-z0-9-]+-\d{2}$/.test(id)) throw new HttpsError("invalid-argument", "Only a stable AceBoard starter question ID can be reviewed.");
+  const ref = firestore.collection("contentReviews").doc(id);
+  const reviewer = safeName(request.auth.token.name || uid);
+  return firestore.runTransaction(async (transaction) => {
+    const currentSnapshot = await transaction.get(ref);
+    const current = currentSnapshot.exists ? currentSnapshot.data() : null;
+    const prepared = prepareQuestionReview({ action, question, questionId: id, current, reviewer, notes, confirmOriginalRights });
+    if (!prepared.valid) throw new HttpsError("failed-precondition", prepared.errors.join(" "));
+    transaction.set(ref, { ...prepared.record, updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: uid });
+    return { questionId: id, reviewOutcome: prepared.record.reviewOutcome, publicationStatus: prepared.record.publicationStatus };
+  });
+});
+
+exports.createDailyChallenge = onCall(async (request) => {
+  const uid = requireContentAdmin(request);
+  const questionIds = request.data?.questionIds;
+  const questions = request.data?.questions;
+  if (!Array.isArray(questionIds) || questionIds.length < 5 || questionIds.length > 10 || !Array.isArray(questions) || questions.length !== questionIds.length || new Set(questionIds).size !== questionIds.length) {
+    throw new HttpsError("invalid-argument", "Select 5–10 distinct published questions for the daily challenge.");
+  }
+  const id = `daily-${new Date().toISOString().slice(0, 10)}`;
+  const start = Date.now();
+  const startsAt = admin.firestore.Timestamp.fromMillis(start);
+  const endsAt = admin.firestore.Timestamp.fromMillis(start + 24 * 60 * 60 * 1000);
+  const docs = await Promise.all(questionIds.map((questionId) => firestore.collection("contentReviews").doc(String(questionId)).get()));
+  if (docs.some((doc) => !doc.exists || doc.data().publicationStatus !== "published" || doc.data().reviewOutcome !== "approved" || doc.data().rightsStatus !== "verified" || doc.data().contentRights !== "permitted")) {
+    throw new HttpsError("failed-precondition", "Every selected question must have a published content and rights review.");
+  }
+  const publishedQuestions = questions.map((question, index) => {
+    const review = docs[index].data();
+    if (question.id !== questionIds[index] || fingerprintReviewQuestion(question) !== review.questionFingerprint) {
+      throw new HttpsError("failed-precondition", `Question ${questionIds[index]} changed after review.`);
+    }
+    return question;
+  });
+  const exams = new Set(publishedQuestions.map((question) => question.exam));
+  const subjects = new Set(publishedQuestions.map((question) => question.subject));
+  if (exams.size !== 1) throw new HttpsError("invalid-argument", "A daily challenge must use questions from one exam.");
+  const challenge = { title: "AceBoard Daily Challenge", description: "A short daily set using reviewed AceBoard-original questions.", exam: publishedQuestions[0].exam, ...(subjects.size === 1 ? { subject: publishedQuestions[0].subject } : {}), challengeType: "daily", startsAt, endsAt, durationSeconds: 15 * 60, scoringMode: "correct-count", questions: publishedQuestions, status: "active", publicationStatus: "published" };
+  const errors = validateChallengeDefinition(challenge);
+  if (errors.length) throw new HttpsError("failed-precondition", errors.join(" "));
+  const ref = firestore.collection("challenges").doc(id);
+  await firestore.runTransaction(async (transaction) => {
+    const existing = await transaction.get(ref);
+    if (existing.exists) throw new HttpsError("already-exists", "Today's Daily Challenge has already been created.");
+    transaction.create(ref, { ...challenge, questionIds, publishedBy: uid, publishedAt: admin.firestore.FieldValue.serverTimestamp() });
+  });
+  return { challengeId: id, status: "published" };
 });

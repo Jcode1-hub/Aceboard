@@ -12,6 +12,7 @@
     "test:content-ingestion": "node scripts/test-content-ingestion.js",
     "test:platform-foundation": "node scripts/test-platform-foundation.js",
     "test:starter-content": "node scripts/test-starter-content.js",
+    "test:content-review": "node scripts/test-content-review.js",
     "content:import": "node scripts/dry-run-content-import.js"
   },
   "dependencies": {
