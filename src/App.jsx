@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, deleteDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, deleteDoc, arrayUnion } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import * as pdfjsLib from "pdfjs-dist/build/pdf";
 import { SatTestRunner, PracticeTestSelect } from './BluebookQuizScreen';
 import { QUESTIONS, getQuestionType, getQuestionText, normalizeQuestionSearchText, buildQuestionSearchText, QUESTION_SEARCH_TEXT_BY_ID } from './content';
 import StudentWorkspace from './platform/StudentWorkspace.jsx';
+import { enableAceBoardNotifications } from './notifications.js';
 import { getPracticeEligibleQuestions } from './platform/workspace.js';
 import { LESSONS } from './learning/catalog.js';
 import { PERSONALIZATION_GOALS, SCHOOL_DESTINATIONS, collegesForDestinations, hasContentAdminClaim } from './platform/personalization.js';
@@ -3623,6 +3624,46 @@ function AboutScreen({ user, onSignOut, profile, missedQuestions, initialScreen 
   const [deleteError, setDeleteError] = useState("");
 
   const missedCount = Object.keys(missedQuestions || {}).length;
+  const [notificationStatus, setNotificationStatus] = useState("idle");
+  const [notificationMessage, setNotificationMessage] = useState("");
+
+  const handleEnableNotifications = async () => {
+    setNotificationStatus("loading");
+    setNotificationMessage("");
+
+    try {
+      const result = await enableAceBoardNotifications(firebaseApp);
+
+      if (result.status !== "granted" || !result.token) {
+        setNotificationStatus(result.status);
+        setNotificationMessage(
+          result.status === "denied"
+            ? "Notifications are blocked in your browser settings."
+            : "Notifications are not available on this device."
+        );
+        return;
+      }
+
+      await setDoc(
+        doc(db, "users", user.uid),
+        {
+          notificationTokens: arrayUnion(result.token),
+          notificationSettings: {
+            enabled: true,
+            updatedAt: serverTimestamp(),
+          },
+        },
+        { merge: true }
+      );
+
+      setNotificationStatus("enabled");
+      setNotificationMessage("Notifications are enabled on this device.");
+    } catch (error) {
+      console.error("Notification setup error:", error);
+      setNotificationStatus("error");
+      setNotificationMessage("We couldn't enable notifications. Please try again.");
+    }
+  };
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
@@ -3723,6 +3764,38 @@ function AboutScreen({ user, onSignOut, profile, missedQuestions, initialScreen 
         {/* Settings row */}
         <div style={S.card}>
           <p style={{ ...S.label, marginBottom: 12 }}>Account</p>
+
+          <button
+            onClick={handleEnableNotifications}
+            disabled={notificationStatus === "loading" || notificationStatus === "enabled"}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              width: "100%",
+              padding: "12px 0",
+              background: "none",
+              border: "none",
+              cursor: notificationStatus === "enabled" ? "default" : "pointer",
+              borderBottom: "1px solid #0D1326",
+            }}
+          >
+            <div style={{ textAlign: "left" }}>
+              <div style={{ fontSize: 14, color: "#F0F2FF" }}>
+                {notificationStatus === "enabled"
+                  ? "Notifications enabled"
+                  : notificationStatus === "loading"
+                  ? "Enabling notifications..."
+                  : "Enable notifications"}
+              </div>
+              {notificationMessage && (
+                <div style={{ ...S.small, marginTop: 3 }}>
+                  {notificationMessage}
+                </div>
+              )}
+            </div>
+            <Icon name="chevron_right" size={16} color="#4A5568" />
+          </button>
           <div style={S.gap(4)}>
             {[
               { label: "Sign out", icon: "external", action: onSignOut, color: "#94A3B8" },
