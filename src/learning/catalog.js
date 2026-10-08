@@ -1,3 +1,6 @@
+import { ACEBOARD_STARTER_QUESTIONS } from "../content/index.js";
+import { getExamConfig } from "../exams/registry.js";
+
 const lesson = (id, exam, subject, topic, title, minutes, objectives, explanation, example, quickCheck) => ({
   id, exam, subject, syllabusVersion: "AceBoard starter edition", topicId: `${exam.toLowerCase()}-${subject.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${topic.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
   topic, title, description: `An AceBoard-original introduction to ${topic.toLowerCase()}.`, estimatedMinutes: minutes,
@@ -41,6 +44,17 @@ export const LESSONS = [
   lesson("ielts-writing-task", "IELTS", "Writing", "Writing development", "Build a clear paragraph", 8, ["State a focused point", "Support and connect the point"], "A clear academic paragraph usually develops one main point with explanation or evidence. A topic sentence gives direction; supporting sentences explain why the point matters. A conclusion can connect it to the task.", "Point: public transport can reduce congestion. Support: carrying more people per vehicle means fewer private cars are needed for the same number of travellers.", { prompt: "What should supporting sentences do?", answer: "Explain or support the paragraph's main point", hint: "Keep one central idea in view." }),
   lesson("ielts-speaking-extend", "IELTS", "Speaking", "Fluency and coherence", "Extend an answer naturally", 6, ["Answer the question directly", "Add a reason or example"], "A developed spoken answer addresses the question first, then adds a reason, detail, or brief example. Useful development should stay relevant rather than adding memorized material that does not fit.", "For a question about a hobby, name it, explain what you enjoy, then give one concrete example.", { prompt: "What is one useful way to develop a short answer?", answer: "Add a relevant reason or example", hint: "Support the direct answer." }),
 ];
+
+for (const item of LESSONS) {
+  item.practiceQuestionIds = ACEBOARD_STARTER_QUESTIONS
+    .filter((question) => question.exam === item.exam && question.subject === item.subject)
+    .map((question) => question.id);
+  item.sourceReferences = (getExamConfig(item.exam)?.officialResources || []).map(({ label, url }) => ({ label, url, role: "curriculum-reference-only" }));
+  item.relatedTopics = LESSONS
+    .filter((candidate) => candidate.exam === item.exam && candidate.subject === item.subject && candidate.id !== item.id)
+    .slice(0, 3)
+    .map(({ id, topic, title }) => ({ id, topic, title }));
+}
 
 export const LESSONS_BY_EXAM = LESSONS.reduce((map, item) => ((map[item.exam] ||= []).push(item), map), {});
 export const getLessonById = (id) => LESSONS.find((item) => item.id === id) || null;

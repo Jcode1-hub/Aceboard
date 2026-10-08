@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { EXAM_LIST, EXAM_REGISTRY, getExamConfig } from "../src/exams/registry.js";
 import { LESSONS } from "../src/learning/catalog.js";
-import { buildSyllabusProgress, getExamPracticeAvailability, lessonsFor, validateOfficialSatResult } from "../src/platform/workspace.js";
-import { QUESTIONS } from "../src/content/index.js";
+import { buildSyllabusProgress, getExamPracticeAvailability, getPracticeEligibleQuestions, lessonsFor, validateOfficialSatResult } from "../src/platform/workspace.js";
+import { ACEBOARD_STARTER_QUESTIONS, LEGACY_QUESTIONS, QUESTIONS, validateQuestionRecords } from "../src/content/index.js";
 import { createSatSession, decideAceBoardRoute, restoreSatSession, serializeSatSession, SAT_MODULES } from "../src/sat/session.js";
 const require = createRequire(import.meta.url);
 const { validateChallengeDefinition, scoreChallenge, publicChallenge, rankAttempts, getLeaderboardScopeKeys } = require("../functions/challengeLogic.js");
@@ -20,7 +20,14 @@ assert.ok(LESSONS.every((item) => item.publicationStatus === "needs-review" && i
 for (const [exam, subjects] of Object.entries({ JAMB: ["Use of English", "Mathematics", "Physics", "Chemistry", "Biology"], WAEC: ["English Language", "Mathematics", "Physics", "Chemistry", "Biology", "Economics", "Government"], NECO: ["English Language", "Mathematics", "Physics", "Chemistry", "Biology"], IGCSE: ["Mathematics", "English", "Biology", "Chemistry", "Physics"], SAT: ["Reading and Writing", "Math"], ACT: ["English", "Math", "Reading", "Science"], IELTS: ["Listening", "Reading", "Writing", "Speaking"] })) {
   for (const subject of subjects) assert.ok(LESSONS.some((item) => item.exam === exam && item.subject === subject), `Starter learning covers ${exam} ${subject}`);
 }
-assert.equal(getExamPracticeAvailability("JAMB", QUESTIONS).total, 40);
+assert.equal(LEGACY_QUESTIONS.length, 40);
+assert.equal(ACEBOARD_STARTER_QUESTIONS.length, 96);
+assert.equal(QUESTIONS.length, 136);
+assert.equal(ACEBOARD_STARTER_QUESTIONS.filter((question) => question.exam === "SAT").length, 6);
+assert.ok(ACEBOARD_STARTER_QUESTIONS.every((question) => question.provenance.kind === "aceboard-original" && question.publicationStatus === "needs-review"));
+assert.equal(validateQuestionRecords(ACEBOARD_STARTER_QUESTIONS).valid, true);
+assert.equal(getPracticeEligibleQuestions(QUESTIONS).length, 0, "No content is practice-eligible until rights and publication gates pass");
+assert.equal(getExamPracticeAvailability("JAMB", QUESTIONS).total, 0);
 assert.equal(getExamPracticeAvailability("SAT", QUESTIONS).total, 0);
 assert.equal(lessonsFor("IELTS").length, 4);
 assert.equal(buildSyllabusProgress(LESSONS, {})[0].state, "not-started");
@@ -62,6 +69,7 @@ assert.deepEqual(validateChallengeDefinition(challenge), []);
 assert.deepEqual(scoreChallenge(challenge, { "ace-original-q1": 1 }), { valid: true, correct: 1, total: 1, answered: 1, unanswered: 0, score: 100 });
 assert.equal(scoreChallenge(challenge, { "unknown-id": 1 }).valid, false);
 assert.ok(validateChallengeDefinition({ ...challenge, questions: [{ ...challenge.questions[0], rightsStatus: "unknown" }] }).length > 0);
+assert.ok(validateChallengeDefinition({ ...challenge, questions: [ACEBOARD_STARTER_QUESTIONS[0]] }).length > 0, "Unreviewed starter content cannot seed a challenge");
 assert.equal(Object.hasOwn(publicChallenge(challenge, "sample").questions[0], "answer"), false);
 assert.equal(rankAttempts([{ displayName: "A", points: 2 }, { displayName: "B", points: 3 }])[0].displayName, "B");
 assert.ok(getLeaderboardScopeKeys(challenge).includes("global"));

@@ -1,4 +1,5 @@
 import { jambPhysicsQuestions } from "./exams/jamb/physics.js";
+import { aceBoardOriginalStarterQuestions } from "./exams/aceboard-original-starter.js";
 import { getQuestionType } from "./schema.js";
 import { CONTENT_SOURCES_BY_ID } from "./sources.js";
 export { CONTENT_RIGHTS_STATES, CONTENT_STATES, CONTENT_STATE_TRANSITIONS, PROVENANCE_ACQUISITION_METHODS, PROVENANCE_KINDS, PUBLICATION_STATES, QUESTION_TYPES, canTransitionContentState, getQuestionText, getQuestionType } from "./schema.js";
@@ -9,7 +10,7 @@ export { INGESTION_STAGES, validateAcquisitionRecord } from "./ingestion.js";
 // The old JAMB records predate structured provenance and revision metadata.
 // Preserve their source fields and content while explicitly flagging unknown
 // rights; do not imply the questions are official or licensed.
-export const QUESTIONS = jambPhysicsQuestions.map((question) => ({
+export const LEGACY_QUESTIONS = jambPhysicsQuestions.map((question) => ({
   ...question,
   questionType: getQuestionType(question),
   sourceId: question.sourceId ?? question.source,
@@ -28,6 +29,12 @@ export const QUESTIONS = jambPhysicsQuestions.map((question) => ({
   rightsStatus: question.rightsStatus ?? "unknown",
   publicationStatus: question.publicationStatus ?? "published",
 }));
+
+// New authored records are kept alongside the untouched legacy source data.
+// Their draft lifecycle and rights metadata keep them out of student practice
+// and challenge publication until a human editor clears both gates.
+export const ACEBOARD_STARTER_QUESTIONS = aceBoardOriginalStarterQuestions;
+export const QUESTIONS = [...LEGACY_QUESTIONS, ...ACEBOARD_STARTER_QUESTIONS];
 
 /** Normalize searchable fields without changing the canonical question. */
 export function normalizeQuestionSearchText(value) {

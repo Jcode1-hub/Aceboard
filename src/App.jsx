@@ -7,6 +7,7 @@ import * as pdfjsLib from "pdfjs-dist/build/pdf";
 import { SatTestRunner, PracticeTestSelect } from './BluebookQuizScreen';
 import { QUESTIONS, getQuestionType, getQuestionText, normalizeQuestionSearchText, buildQuestionSearchText, QUESTION_SEARCH_TEXT_BY_ID } from './content';
 import StudentWorkspace from './platform/StudentWorkspace.jsx';
+import { getPracticeEligibleQuestions } from './platform/workspace.js';
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
@@ -1283,7 +1284,7 @@ function HomeScreen({ onStart, onSearch, onNotes, bookmarks, stats, profile, dai
                 <ExamLogo exam={exam} size={36} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F2FF", marginBottom: 2 }}>{exam}</div>
-                  <div style={S.small}>{QUESTIONS.filter(q => q.exam === exam).length} questions</div>
+                  <div style={S.small}>{getPracticeEligibleQuestions(QUESTIONS).filter(q => q.exam === exam).length} approved questions</div>
                 </div>
               </button>
             ))}
@@ -1327,7 +1328,8 @@ function PracticeSetup({ profile, defaultExam, defaultSubject, defaultTopic, onB
   // Only show subjects the student actually picked during onboarding for this exam —
   // falls back to the full master list if they never set targets for this exam
   // (e.g. picked it as an exam but skipped/hasn't done its config step).
-  const allSubjectsForExam = [...new Set(QUESTIONS.filter(q => q.exam === exam).map(q => q.subject))];
+  const practiceQuestions = getPracticeEligibleQuestions(QUESTIONS);
+  const allSubjectsForExam = [...new Set(practiceQuestions.filter(q => q.exam === exam).map(q => q.subject))];
   const onboardedSubjects = (() => {
     const t = profile?.targets?.[exam];
     if (!t) return null;
@@ -1344,22 +1346,21 @@ function PracticeSetup({ profile, defaultExam, defaultSubject, defaultTopic, onB
     ? allSubjectsForExam.filter(s => onboardedSubjects.includes(s))
     : allSubjectsForExam;
   const singleSubject = subjects.length === 1 ? subjects[0] : null;
-  const topicsForSubject = singleSubject ? ["All Topics", ...new Set(QUESTIONS.filter(q => q.exam === exam && q.subject === singleSubject).map(q => q.topic))] : ["All Topics"];
-  const yearsAvailable = ["All Years", ...new Set(QUESTIONS.filter(q =>
+  const topicsForSubject = singleSubject ? ["All Topics", ...new Set(practiceQuestions.filter(q => q.exam === exam && q.subject === singleSubject).map(q => q.topic))] : ["All Topics"];
+  const yearsAvailable = ["All Years", ...new Set(practiceQuestions.filter(q =>
     q.exam === exam &&
     (subjects.length === 0 || subjects.includes(q.subject)) &&
     (!singleSubject || topic === "All Topics" || q.topic === topic)
   ).map(q => q.year))].sort((a, b) => (a === "All Years" ? -1 : b === "All Years" ? 1 : b - a));
 
-  const available = QUESTIONS.filter(q =>
+  const available = practiceQuestions.filter(q =>
     q.exam === exam &&
     (subjects.length === 0 || subjects.includes(q.subject)) &&
     (!singleSubject || topic === "All Topics" || q.topic === topic) &&
     (year === "All Years" || q.year === year)
   );
 
-  const countOptions = [5, 10, 15, 20, 25, 30, 40, 50].filter(n => n <= Math.max(available.length, 5));
-  if (countOptions.length === 0) countOptions.push(Math.max(available.length, 1));
+  const countOptions = [...new Set([5, 10, 20, ...(available.length > 0 && available.length < 5 ? [available.length] : [])])];
 
   const showMock = MOCK_ELIGIBLE.includes(exam);
   const modeLabel = mode === "exam" ? "Exam Mode" : mode === "mock" ? "Mock Mode" : "Practice Mode";
@@ -1387,7 +1388,7 @@ function PracticeSetup({ profile, defaultExam, defaultSubject, defaultTopic, onB
         <div>
           <p style={{ ...S.label, marginBottom: 10 }}>Exam Body</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {myExams.filter(e => e !== "SAT").map(e => (
+            {myExams.map(e => (
               <button key={e} style={S.btnSmall(exam === e)} onClick={() => { setExam(e); setSubjects([]); setTopic("All Topics"); setYear("All Years"); if (!MOCK_ELIGIBLE.includes(e) && mode === "mock") setMode("practice"); }}>{e}</button>
             ))}
           </div>
@@ -1542,7 +1543,7 @@ function TimerRing({ timeLeft, totalSeconds, size = 44 }) {
 
 // ── QUIZ SCREEN ───────────────────────────────────────────────────────────────
 function QuizScreen({ config, bookmarks, onToggleBookmark, onFinish, onBack }) {
-  const pool = QUESTIONS.filter(q =>
+  const pool = getPracticeEligibleQuestions(QUESTIONS).filter(q =>
     q.exam === config.exam &&
     (!config.subjects || config.subjects.length === 0 || config.subjects.includes(q.subject)) &&
     (!config.topic || config.topic === "All Topics" || q.topic === config.topic) &&
@@ -2912,7 +2913,8 @@ function QuestionSearchScreen({ onBack, profile }) {
   const [keyword, setKeyword] = useState("");
   const [selected, setSelected] = useState(null);
   const userExams = profile?.exams || [];
-  const scopedQs = userExams.length > 0 ? QUESTIONS.filter(q => userExams.includes(q.exam)) : QUESTIONS;
+  const eligibleQuestions = getPracticeEligibleQuestions(QUESTIONS);
+  const scopedQs = userExams.length > 0 ? eligibleQuestions.filter(q => userExams.includes(q.exam)) : eligibleQuestions;
   const normalizedKeyword = normalizeQuestionSearchText(keyword);
   const examOptions = ["All", ...new Set(scopedQs.map(q => q.exam))];
   const subjectOptions = ["All Subjects", ...new Set(scopedQs.filter(q => examFilter === "All" || q.exam === examFilter).map(q => q.subject))];
@@ -4820,11 +4822,7 @@ const [onboarded, setOnboarded] = useState(false);
     setDefaultExam(chosenExam);
     setDefaultSubject(subject);
     setDefaultTopic(topic);
-    if (chosenExam === "SAT") {
-      setScreen("selectSatTest");
-    } else {
-      setScreen("config");
-    }
+    setScreen("config");
   }
   const handleTestTopic = (exam, subject, topic) => {
     setDefaultExam(exam);
@@ -4928,17 +4926,17 @@ const [onboarded, setOnboarded] = useState(false);
 
   if (screen === "quiz") return (
     <div style={shellStyle}>
-      {quizConfig.exam === "SAT" ? (
+      {quizConfig.exam === "SAT" && quizConfig.mode === "full-sat" ? (
         <SatTestRunner
                   onSaveExit={(snapshot) => setSatActiveTest(snapshot)}
           onSessionChange={handleSatSessionChange}
                   userName={user?.displayName || "Student"}
-          allQuestions={QUESTIONS}
+          allQuestions={getPracticeEligibleQuestions(QUESTIONS)}
           practiceTest={quizConfig.practiceTest}
                     resumeState={satActiveTest?.practiceTest === quizConfig.practiceTest ? satActiveTest : null}
           isPracticeTest={quizConfig.mode === "practice"}
                     onFinish={(payload) => {
-            const satPool = QUESTIONS.filter(
+            const satPool = getPracticeEligibleQuestions(QUESTIONS).filter(
               q => q.exam === "SAT" && q.practiceTest === quizConfig.practiceTest
             );
             const { ans, pool, timeInfo } = bridgeSatFinish(payload, satPool);
@@ -4983,7 +4981,7 @@ const [onboarded, setOnboarded] = useState(false);
 
     if (screen === "results") return (
     <div style={shellStyle}>
-      {quizConfig?.exam === "SAT" ? (
+      {quizConfig?.exam === "SAT" && quizConfig?.mode === "full-sat" ? (
         <SatResultsScreen
           answers={quizAnswers}
           questions={quizPool}
@@ -5000,7 +4998,7 @@ const [onboarded, setOnboarded] = useState(false);
 
     if (screen === "review") return (
     <div style={shellStyle}>
-      {quizConfig?.exam === "SAT" ? (
+      {quizConfig?.exam === "SAT" && quizConfig?.mode === "full-sat" ? (
         <SatReviewScreen answers={quizAnswers} questions={quizPool} onBack={() => setScreen("results")} />
       ) : (
         <ReviewScreen answers={quizAnswers} questions={quizPool} onBack={() => setScreen("results")} />
@@ -5022,14 +5020,14 @@ const [onboarded, setOnboarded] = useState(false);
     if (screen === "selectSatTest") return (
     <div style={shellStyle}>
       <PracticeTestSelect
-        allQuestions={QUESTIONS}
+        allQuestions={getPracticeEligibleQuestions(QUESTIONS)}
         activeTest={satActiveTest}
         completedTests={satCompletedTests}
         onSelect={(practiceTestNumber) => {
           handleBegin({
             exam: "SAT",
             practiceTest: practiceTestNumber,
-            mode: "practice",
+            mode: "full-sat",
           });
         }}
         onResume={(activeTest) => {
@@ -5037,7 +5035,7 @@ const [onboarded, setOnboarded] = useState(false);
           setScreen("quiz");
         }}
                 onViewResults={(t) => {
-          const pool = QUESTIONS.filter(
+          const pool = getPracticeEligibleQuestions(QUESTIONS).filter(
             q => q.exam === "SAT" && q.practiceTest === t.practiceTest
           );
           setQuizPool(pool);
@@ -5077,6 +5075,7 @@ const [onboarded, setOnboarded] = useState(false);
         submitChallenge={(challengeId, responses) => callChallengeFunction("submitChallengeAttempt", { challengeId, responses })}
         getLeaderboard={(scope) => callChallengeFunction("getChallengeLeaderboard", { scope })}
         onStartPractice={(exam, subject, topic) => handleStart(exam, subject, topic)}
+        onStartSatFullTest={() => setScreen("selectSatTest")}
         onOpenLegacy={(destination) => {
           const destinations = { saved: "bookmarks", progress: "analytics" };
           setTab(destinations[destination] || destination);

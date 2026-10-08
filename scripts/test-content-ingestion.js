@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { CONTENT_SOURCES_BY_ID, QUESTIONS } from "../src/content/index.js";
+import { CONTENT_SOURCES_BY_ID, LEGACY_QUESTIONS } from "../src/content/index.js";
 import {
   dryRunContentImport,
   fingerprintQuestionContent,
@@ -16,7 +16,7 @@ const fixtureDir = resolve("tests/fixtures/content-ingestion");
 const readFixture = async (name) => readFile(resolve(fixtureDir, name), "utf8");
 const questionFixtures = JSON.parse(await readFixture("question-fixtures.json"));
 const mixedFixture = JSON.parse(await readFixture("mixed-batch.json"));
-const catalogSnapshot = JSON.stringify(QUESTIONS);
+const catalogSnapshot = JSON.stringify(LEGACY_QUESTIONS);
 
 const fixtureSource = (sourceId, sourceType, rightsStatus = "verified") => ({
   sourceId,
@@ -129,9 +129,9 @@ assert.equal(mixedRun.manifest.writesPerformed, false);
 assert.equal(mixedRun.manifest.publicationPerformed, false);
 
 // Existing bank is still the exact same in-memory source; dry-run never writes it.
-assert.equal(QUESTIONS.length, 40);
-assert.equal(QUESTIONS.filter((question) => question.exam === "SAT").length, 0);
-assert.equal(JSON.stringify(QUESTIONS), catalogSnapshot);
+assert.equal(LEGACY_QUESTIONS.length, 40);
+assert.equal(LEGACY_QUESTIONS.filter((question) => question.exam === "SAT").length, 0);
+assert.equal(JSON.stringify(LEGACY_QUESTIONS), catalogSnapshot);
 
 // Manifest metadata is checked explicitly and never silently filled.
 assert.equal(validateImportManifestMetadata({ sourceId: "aceboard-original-content", acquisitionMethod: "original-authorship" }).valid, true);

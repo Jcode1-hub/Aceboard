@@ -1,5 +1,16 @@
 import { LESSONS } from "../learning/catalog.js";
 import { getExamConfig } from "../exams/registry.js";
+import { assessQuestionPublication } from "../content/validation.js";
+
+const practiceEligibilityCache = new WeakMap();
+export function getPracticeEligibleQuestions(questions) {
+  return questions.filter((question) => {
+    if (!question || typeof question !== "object") return false;
+    if (!practiceEligibilityCache.has(question)) practiceEligibilityCache.set(question,
+      question.publicationStatus === "published" && assessQuestionPublication(question).allowed);
+    return practiceEligibilityCache.get(question);
+  });
+}
 
 export function buildSyllabusProgress(lessons, progress = {}) {
   return lessons.map((item) => ({
@@ -34,6 +45,7 @@ export function validateOfficialSatResult(input) {
 
 export function getExamPracticeAvailability(exam, questions) {
   const config = getExamConfig(exam);
-  const bySubject = Object.fromEntries(config.subjects.map(({ name }) => [name, questions.filter((q) => q.exam === exam && q.subject === name).length]));
+  const eligible = getPracticeEligibleQuestions(questions);
+  const bySubject = Object.fromEntries(config.subjects.map(({ name }) => [name, eligible.filter((q) => q.exam === exam && q.subject === name).length]));
   return { total: Object.values(bySubject).reduce((sum, count) => sum + count, 0), bySubject };
 }
