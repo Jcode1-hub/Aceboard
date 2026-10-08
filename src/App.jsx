@@ -4371,6 +4371,12 @@ function OnboardingScreen({ onComplete, publishedContent = [] }) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && canContinue()) {
+                  e.preventDefault();
+                  next();
+                }
+              }}
               placeholder="Enter your name"
               style={{ width: "100%", padding: "16px 18px", backgroundColor: "#0D1326", border: "1.5px solid #1E2A4A", borderRadius: 14, color: "#F0F2FF", fontSize: 16, outline: "none" }}
             />
